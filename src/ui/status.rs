@@ -258,6 +258,7 @@ impl<'a> NotificationWidget<'a> {
     }
 }
 
+#[allow(clippy::vec_init_then_push)]
 impl Widget for NotificationWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         use ratatui::widgets::{Block, BorderType, Borders, Clear};
@@ -311,24 +312,6 @@ impl Widget for NotificationWidget<'_> {
 
             let paragraph = Paragraph::new(lines);
             paragraph.render(inner, buf);
-        }
-    }
-}
-
-/// Right border - draws a vertical line on the right edge
-pub struct RightBorder;
-
-impl Widget for RightBorder {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        if area.width == 0 || area.height == 0 {
-            return;
-        }
-
-        let x = area.x + area.width - 1;
-        for y in area.y..area.y + area.height {
-            buf[(x, y)]
-                .set_char('│')
-                .set_style(Style::default().fg(Color::Rgb(114, 121, 135)));
         }
     }
 }

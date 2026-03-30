@@ -41,6 +41,7 @@ impl<'a> TokenUsageModal<'a> {
     }
 }
 
+#[allow(clippy::vec_init_then_push)]
 impl Widget for TokenUsageModal<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let t = &self.state.theme;

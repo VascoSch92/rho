@@ -66,11 +66,6 @@ impl LLMConfig {
         self.base_url = Some(base_url.into());
         self
     }
-
-    pub fn with_usage_id(mut self, usage_id: impl Into<String>) -> Self {
-        self.usage_id = usage_id.into();
-        self
-    }
 }
 
 /// Text content for messages
@@ -161,15 +156,6 @@ pub struct AgentConfig {
 }
 
 impl AgentConfig {
-    /// Create agent config with no extra tools (just builtin FinishTool, ThinkTool)
-    pub fn new(llm: LLMConfig) -> Self {
-        Self {
-            kind: "Agent",
-            llm,
-            tools: None,
-        }
-    }
-
     /// Create agent config with default development tools
     /// Tool names are snake_case without _tool suffix (e.g., TerminalTool -> "terminal")
     pub fn with_default_tools(llm: LLMConfig) -> Self {
@@ -182,11 +168,6 @@ impl AgentConfig {
                 ToolConfig::new("task_tracker"), // TaskTrackerTool -> task_tracker
             ]),
         }
-    }
-
-    pub fn with_tools(mut self, tools: Vec<ToolConfig>) -> Self {
-        self.tools = Some(tools);
-        self
     }
 }
 
@@ -216,18 +197,7 @@ pub struct StartConversationRequest {
 }
 
 /// Health check response - server returns plain "OK" string
-pub struct HealthResponse {
-    pub ok: bool,
-}
-
-/// Server info response
-#[derive(Debug, Deserialize)]
-pub struct ServerInfo {
-    pub name: String,
-    pub version: String,
-    #[serde(default)]
-    pub ready: bool,
-}
+pub struct HealthResponse {}
 
 /// Agent Server HTTP client
 #[derive(Clone)]
@@ -270,24 +240,8 @@ impl AgentServerClient {
         }
 
         // Server returns plain "OK" string, not JSON
-        let text = resp.text().await?;
-        Ok(HealthResponse {
-            ok: text.trim() == "OK",
-        })
-    }
-
-    /// Get server info
-    pub async fn server_info(&self) -> Result<ServerInfo> {
-        let resp = self.request(reqwest::Method::GET, "/").send().await?;
-
-        if !resp.status().is_success() {
-            return Err(ClientError::Server {
-                status: resp.status().as_u16(),
-                message: resp.text().await.unwrap_or_default(),
-            });
-        }
-
-        Ok(resp.json().await?)
+        let _text = resp.text().await?;
+        Ok(HealthResponse {})
     }
 
     /// Start a new conversation with agent configuration
@@ -314,23 +268,6 @@ impl AgentServerClient {
             let message = resp.text().await.unwrap_or_default();
             tracing::error!("Failed to start conversation: {} - {}", status, message);
             return Err(ClientError::Server { status, message });
-        }
-
-        Ok(resp.json().await?)
-    }
-
-    /// Get conversation info
-    pub async fn get_conversation(&self, id: Uuid) -> Result<ConversationInfo> {
-        let resp = self
-            .request(reqwest::Method::GET, &format!("/api/conversations/{}", id))
-            .send()
-            .await?;
-
-        if !resp.status().is_success() {
-            return Err(ClientError::Server {
-                status: resp.status().as_u16(),
-                message: resp.text().await.unwrap_or_default(),
-            });
         }
 
         Ok(resp.json().await?)
@@ -389,26 +326,6 @@ impl AgentServerClient {
             let message = resp.text().await.unwrap_or_default();
             tracing::error!("Failed to send message: {} - {}", status, message);
             return Err(ClientError::Server { status, message });
-        }
-
-        Ok(())
-    }
-
-    /// Run the conversation (starts agent processing)
-    pub async fn run_conversation(&self, conversation_id: Uuid) -> Result<()> {
-        let resp = self
-            .request(
-                reqwest::Method::POST,
-                &format!("/api/conversations/{}/run", conversation_id),
-            )
-            .send()
-            .await?;
-
-        if !resp.status().is_success() {
-            return Err(ClientError::Server {
-                status: resp.status().as_u16(),
-                message: resp.text().await.unwrap_or_default(),
-            });
         }
 
         Ok(())
@@ -500,33 +417,6 @@ impl AgentServerClient {
             .await
     }
 
-    /// Execute a bash command in the workspace
-    pub async fn execute_bash(&self, command: &str) -> Result<BashResult> {
-        #[derive(Serialize)]
-        struct BashRequest {
-            command: String,
-        }
-
-        let req = BashRequest {
-            command: command.to_string(),
-        };
-
-        let resp = self
-            .request(reqwest::Method::POST, "/api/bash")
-            .json(&req)
-            .send()
-            .await?;
-
-        if !resp.status().is_success() {
-            return Err(ClientError::Server {
-                status: resp.status().as_u16(),
-                message: resp.text().await.unwrap_or_default(),
-            });
-        }
-
-        Ok(resp.json().await?)
-    }
-
     /// Get the WebSocket URL for a specific conversation's events
     /// The endpoint is at /sockets/events/{conversation_id}
     pub fn conversation_websocket_url(&self, conversation_id: Uuid) -> String {
@@ -536,13 +426,4 @@ impl AgentServerClient {
             .replace("https://", "wss://");
         format!("{}/sockets/events/{}", ws_base, conversation_id)
     }
-}
-
-/// Result of executing a bash command
-#[derive(Debug, Clone, Deserialize)]
-pub struct BashResult {
-    pub command: String,
-    pub exit_code: i32,
-    pub stdout: String,
-    pub stderr: String,
 }

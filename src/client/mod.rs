@@ -29,9 +29,6 @@ pub enum ClientError {
     #[error("Server error: {status} - {message}")]
     Server { status: u16, message: String },
 
-    #[error("Connection error: {0}")]
-    Connection(String),
-
     #[error("URL parse error: {0}")]
     UrlParse(#[from] url::ParseError),
 }

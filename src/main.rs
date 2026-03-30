@@ -104,7 +104,6 @@ enum AppCommand {
     ConfirmAll,
     ConfirmDefer,
     SetPolicy(ConfirmationPolicy),
-    Quit,
     ForceQuit,
     CancelQuit,
 }
@@ -296,7 +295,7 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     terminal.hide_cursor()?;
 
     // Create application state
-    let mut state = AppState::new(args.server.clone());
+    let mut state = AppState::default();
     if args.always_approve {
         state.confirmation_policy = ConfirmationPolicy::NeverConfirm;
     }
@@ -481,17 +480,18 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
                     event_stream = None;
                 }
             }
-        } else if state.conversation_id.is_some() && state.is_running() {
-            // No stream but we have a conversation and it's running - try to connect
-            let conv_id = state.conversation_id.unwrap();
-            let ws_url = client.conversation_websocket_url(conv_id);
-            match EventStream::connect(&ws_url).await {
-                Ok(stream) => {
-                    info!("WebSocket connected (was missing)");
-                    event_stream = Some(stream);
-                }
-                Err(e) => {
-                    debug!("Failed to connect missing WebSocket: {}", e);
+        } else if let Some(conv_id) = state.conversation_id {
+            if state.is_running() {
+                // No stream but we have a conversation and it's running - try to connect
+                let ws_url = client.conversation_websocket_url(conv_id);
+                match EventStream::connect(&ws_url).await {
+                    Ok(stream) => {
+                        info!("WebSocket connected (was missing)");
+                        event_stream = Some(stream);
+                    }
+                    Err(e) => {
+                        debug!("Failed to connect missing WebSocket: {}", e);
+                    }
                 }
             }
         }
@@ -707,15 +707,14 @@ fn handle_key_event(state: &mut AppState, key: event::KeyEvent, args: &Args) -> 
             }
 
             // Check for slash commands
-            if input.starts_with('/') {
-                return handle_slash_command(&input[1..], state);
+            if let Some(cmd) = input.strip_prefix('/') {
+                return handle_slash_command(cmd, state);
             }
 
             // Check for bash commands (starts with !)
-            if input.starts_with('!') {
-                let cmd = input[1..].to_string();
+            if let Some(cmd) = input.strip_prefix('!') {
                 if !cmd.is_empty() {
-                    return Some(AppCommand::RunBashCommand(cmd));
+                    return Some(AppCommand::RunBashCommand(cmd.to_string()));
                 }
             }
 
@@ -1233,10 +1232,6 @@ async fn process_command(
                 "Policy Changed",
                 format!("Confirmation policy: {}", policy),
             ));
-        }
-
-        AppCommand::Quit => {
-            state.exit_confirmation_pending = true;
         }
 
         AppCommand::ForceQuit => {

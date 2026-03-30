@@ -23,8 +23,6 @@ pub struct Theme {
     pub error: Color,
     /// Success color - checkmarks, positive indicators
     pub success: Color,
-    /// Warning color - caution indicators
-    pub warning: Color,
 }
 
 impl Theme {
@@ -63,7 +61,6 @@ impl Theme {
             border: Color::Rgb(80, 80, 80),     // #505050
             error: Color::Rgb(255, 107, 107),   // #ff6b6b
             success: Color::Rgb(107, 255, 107), // #6bff6b
-            warning: Color::Rgb(255, 225, 101), // #ffe165
         }
     }
 
@@ -74,11 +71,10 @@ impl Theme {
             accent: Color::Rgb(139, 233, 253),     // cyan
             foreground: Color::Rgb(248, 248, 242), // fg
             background: Color::Reset,
-            muted: Color::Rgb(98, 114, 164),    // comment
-            border: Color::Rgb(68, 71, 90),     // current line
-            error: Color::Rgb(255, 85, 85),     // red
-            success: Color::Rgb(80, 250, 123),  // green
-            warning: Color::Rgb(241, 250, 140), // yellow
+            muted: Color::Rgb(98, 114, 164),   // comment
+            border: Color::Rgb(68, 71, 90),    // current line
+            error: Color::Rgb(255, 85, 85),    // red
+            success: Color::Rgb(80, 250, 123), // green
         }
     }
 
@@ -93,7 +89,6 @@ impl Theme {
             border: Color::Rgb(88, 91, 112),    // surface2
             error: Color::Rgb(243, 139, 168),   // red
             success: Color::Rgb(166, 227, 161), // green
-            warning: Color::Rgb(249, 226, 175), // yellow
         }
     }
 
@@ -108,7 +103,6 @@ impl Theme {
             border: Color::Rgb(61, 89, 161),    // dark blue
             error: Color::Rgb(247, 118, 142),   // red
             success: Color::Rgb(158, 206, 106), // green
-            warning: Color::Rgb(224, 175, 104), // yellow
         }
     }
 
@@ -123,7 +117,6 @@ impl Theme {
             border: Color::Rgb(7, 54, 66),    // base02
             error: Color::Rgb(220, 50, 47),   // red
             success: Color::Rgb(133, 153, 0), // green
-            warning: Color::Rgb(203, 75, 22), // orange
         }
     }
 
@@ -138,7 +131,6 @@ impl Theme {
             border: Color::Rgb(80, 73, 69),    // bg2
             error: Color::Rgb(251, 73, 52),    // red
             success: Color::Rgb(184, 187, 38), // green
-            warning: Color::Rgb(254, 128, 25), // orange
         }
     }
 }
@@ -158,9 +150,6 @@ pub const RHO_BANNER: &[&str] = &[
     r"   |_| \_\_| |_|\___/ ",
     r"                      ",
 ];
-
-/// Rho compact logo (for header)
-pub const RHO_LOGO: &[&str] = &[r"|  _ \ ", r"| |_) |", r"|  _ < ", r"|_| \_\"];
 
 /// Spinner style variants
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,24 +173,6 @@ impl SpinnerStyle {
                 "[   ==]", "[  ===]", "[ === ]", "[===  ]", "[==   ]",
             ],
         }
-    }
-
-    pub fn random_with_seed(seed: usize) -> Self {
-        match seed % 4 {
-            0 => SpinnerStyle::Braille,
-            1 => SpinnerStyle::BoxBuilding,
-            2 => SpinnerStyle::ArrowSpin,
-            _ => SpinnerStyle::BouncingBar,
-        }
-    }
-
-    pub fn all() -> [SpinnerStyle; 4] {
-        [
-            SpinnerStyle::Braille,
-            SpinnerStyle::BoxBuilding,
-            SpinnerStyle::ArrowSpin,
-            SpinnerStyle::BouncingBar,
-        ]
     }
 
     pub fn next(&self) -> Self {

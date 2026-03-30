@@ -5,7 +5,7 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Paragraph, Widget},
+    widgets::{Paragraph, Widget},
 };
 use textwrap::wrap;
 
@@ -30,7 +30,6 @@ impl<'a> MessageListWidget<'a> {
             MessageRole::Assistant => Style::default().fg(t.foreground),
             MessageRole::System => Style::default().fg(t.muted),
             MessageRole::Action => Style::default().fg(t.primary),
-            MessageRole::Observation => Style::default().fg(t.accent),
             MessageRole::Error => Style::default().fg(t.error).add_modifier(Modifier::BOLD),
         }
     }
@@ -239,7 +238,7 @@ impl<'a> MessageListWidget<'a> {
                     lines.push(Line::from(indented_spans));
                 }
             }
-            MessageRole::Action | MessageRole::Observation => {
+            MessageRole::Action => {
                 let mut header_spans = vec![];
 
                 header_spans.push(Span::styled("│ ", Style::default().fg(t.muted)));
@@ -499,30 +498,5 @@ fn truncate_path(path: &str, max_len: usize) -> String {
         "...".to_string()
     } else {
         format!("...{}", &path[path.len().saturating_sub(max_len - 3)..])
-    }
-}
-
-/// Single message widget for detailed view (unused but kept for API)
-pub struct MessageDetailWidget<'a> {
-    message: &'a DisplayMessage,
-}
-
-impl<'a> MessageDetailWidget<'a> {
-    pub fn new(message: &'a DisplayMessage) -> Self {
-        Self { message }
-    }
-}
-
-impl Widget for MessageDetailWidget<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let style = MessageListWidget::role_style(self.message.role, &Theme::default());
-        let block = Block::default().borders(Borders::ALL).border_style(style);
-
-        let inner = block.inner(area);
-        block.render(area, buf);
-
-        let paragraph = Paragraph::new(self.message.content.as_str())
-            .wrap(ratatui::widgets::Wrap { trim: false });
-        paragraph.render(inner, buf);
     }
 }

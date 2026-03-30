@@ -36,11 +36,7 @@ impl<'a> CommandMenuWidget<'a> {
         let input = &self.state.input_buffer;
 
         // Get the command part after /
-        let filter = if input.starts_with('/') {
-            &input[1..]
-        } else {
-            ""
-        };
+        let filter = input.strip_prefix('/').unwrap_or("");
 
         if filter.is_empty() {
             // Show all commands
@@ -113,11 +109,7 @@ impl Widget for CommandMenuWidget<'_> {
 /// Get the number of available commands (filtered)
 pub fn command_count(state: &AppState) -> usize {
     let input = &state.input_buffer;
-    let filter = if input.starts_with('/') {
-        &input[1..]
-    } else {
-        ""
-    };
+    let filter = input.strip_prefix('/').unwrap_or("");
 
     if filter.is_empty() {
         COMMANDS.len()
@@ -132,11 +124,7 @@ pub fn command_count(state: &AppState) -> usize {
 /// Get the selected command name
 pub fn selected_command(state: &AppState) -> Option<&'static str> {
     let input = &state.input_buffer;
-    let filter = if input.starts_with('/') {
-        &input[1..]
-    } else {
-        ""
-    };
+    let filter = input.strip_prefix('/').unwrap_or("");
 
     let commands: Vec<_> = if filter.is_empty() {
         COMMANDS.to_vec()

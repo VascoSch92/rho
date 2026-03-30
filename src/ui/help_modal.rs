@@ -21,6 +21,7 @@ impl<'a> HelpModal<'a> {
     }
 }
 
+#[allow(clippy::vec_init_then_push)]
 impl Widget for HelpModal<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let t = &self.state.theme;

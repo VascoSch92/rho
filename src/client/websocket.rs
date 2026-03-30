@@ -162,43 +162,8 @@ impl EventStream {
         self.receiver.try_recv().ok()
     }
 
-    /// Receive the next event, blocking if necessary
-    pub async fn recv(&mut self) -> Option<Event> {
-        self.receiver.recv().await
-    }
-
     /// Check if the WebSocket is still connected
     pub fn is_connected(&self) -> bool {
         self.connected.load(Ordering::SeqCst) && !self.receiver.is_closed()
-    }
-}
-
-/// Managed WebSocket connection that can reconnect
-pub struct ManagedEventStream {
-    url: String,
-    stream: Option<EventStream>,
-}
-
-impl ManagedEventStream {
-    pub fn new(url: String) -> Self {
-        Self { url, stream: None }
-    }
-
-    /// Ensure connection is established
-    pub async fn ensure_connected(&mut self) -> Result<()> {
-        if self.stream.is_none() {
-            self.stream = Some(EventStream::connect(&self.url).await?);
-        }
-        Ok(())
-    }
-
-    /// Try to receive the next event
-    pub fn try_recv(&mut self) -> Option<Event> {
-        self.stream.as_mut().and_then(|s| s.try_recv())
-    }
-
-    /// Disconnect the stream
-    pub fn disconnect(&mut self) {
-        self.stream = None;
     }
 }

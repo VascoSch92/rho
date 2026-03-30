@@ -44,8 +44,6 @@ pub enum InputMode {
     Normal,
     /// Confirmation mode - waiting for user to confirm actions
     Confirmation,
-    /// Command mode - user is entering a slash command
-    Command,
 }
 
 /// A display message in the conversation
@@ -54,7 +52,6 @@ pub struct DisplayMessage {
     pub id: Option<String>, // Event ID (UUID or ULID)
     pub role: MessageRole,
     pub content: String,
-    pub timestamp: Instant,
     pub collapsed: bool,
     pub tool_name: Option<String>,
     pub security_risk: Option<SecurityRisk>,
@@ -67,7 +64,6 @@ pub enum MessageRole {
     Assistant,
     System,
     Action,
-    Observation,
     Error,
 }
 
@@ -77,7 +73,6 @@ impl DisplayMessage {
             id: None,
             role: MessageRole::User,
             content: content.into(),
-            timestamp: Instant::now(),
             collapsed: false,
             tool_name: None,
             security_risk: None,
@@ -90,7 +85,6 @@ impl DisplayMessage {
             id: None,
             role: MessageRole::Assistant,
             content: content.into(),
-            timestamp: Instant::now(),
             collapsed: false,
             tool_name: None,
             security_risk: None,
@@ -103,7 +97,6 @@ impl DisplayMessage {
             id: None,
             role: MessageRole::System,
             content: content.into(),
-            timestamp: Instant::now(),
             collapsed: true,
             tool_name: None,
             security_risk: None,
@@ -121,23 +114,9 @@ impl DisplayMessage {
             id: Some(event.tool_call_id.clone()),
             role: MessageRole::Action,
             content: summary,
-            timestamp: Instant::now(),
             collapsed: true,
             tool_name: Some(event.tool_name.clone()),
             security_risk: event.security_risk,
-            accepted: false,
-        }
-    }
-
-    pub fn observation(tool_name: &str, content: impl Into<String>) -> Self {
-        Self {
-            id: None,
-            role: MessageRole::Observation,
-            content: content.into(),
-            timestamp: Instant::now(),
-            collapsed: true,
-            tool_name: Some(tool_name.to_string()),
-            security_risk: None,
             accepted: false,
         }
     }
@@ -147,7 +126,6 @@ impl DisplayMessage {
             id: None,
             role: MessageRole::Error,
             content: content.into(),
-            timestamp: Instant::now(),
             collapsed: false,
             tool_name: None,
             security_risk: None,
@@ -159,7 +137,6 @@ impl DisplayMessage {
 /// Pending action awaiting confirmation
 #[derive(Debug, Clone)]
 pub struct PendingAction {
-    pub id: Uuid,
     pub tool_call_id: String,
     pub tool_name: String,
     pub summary: String,
@@ -232,18 +209,6 @@ pub enum LlmProvider {
 }
 
 impl LlmProvider {
-    pub fn as_str(&self) -> &str {
-        match self {
-            LlmProvider::OpenHands => "openhands",
-            LlmProvider::Anthropic => "anthropic",
-            LlmProvider::OpenAI => "openai",
-            LlmProvider::Mistral => "mistral",
-            LlmProvider::Google => "google",
-            LlmProvider::DeepSeek => "deepseek",
-            LlmProvider::Other(s) => s,
-        }
-    }
-
     pub fn display_name(&self) -> &str {
         match self {
             LlmProvider::OpenHands => "OpenHands",
@@ -307,7 +272,6 @@ impl LlmProvider {
 /// Main application state
 pub struct AppState {
     // Connection state
-    pub server_url: String,
     pub connected: bool,
     pub conversation_id: Option<Uuid>,
     pub execution_status: ExecutionStatus,
@@ -317,7 +281,6 @@ pub struct AppState {
     pub input_buffer: String,
     pub cursor_position: usize,
     pub scroll_offset: usize,
-    pub selected_message: Option<usize>,
 
     // Conversation state
     pub messages: VecDeque<DisplayMessage>,
@@ -394,7 +357,6 @@ impl Default for AppState {
             .map(|s| s.to_string())
             .unwrap_or_default();
         Self {
-            server_url: "http://127.0.0.1:8000".to_string(),
             connected: false,
             conversation_id: None,
             execution_status: ExecutionStatus::Idle,
@@ -402,7 +364,6 @@ impl Default for AppState {
             input_buffer: String::new(),
             cursor_position: 0,
             scroll_offset: 0,
-            selected_message: None,
             messages: VecDeque::new(),
             conversation_title: None,
             confirmation_policy: ConfirmationPolicy::AlwaysConfirm,
@@ -445,13 +406,6 @@ impl Default for AppState {
 }
 
 impl AppState {
-    pub fn new(server_url: String) -> Self {
-        Self {
-            server_url,
-            ..Default::default()
-        }
-    }
-
     /// Add a message to the conversation
     pub fn add_message(&mut self, message: DisplayMessage) {
         self.messages.push_back(message);
@@ -494,7 +448,6 @@ impl AppState {
                         action.security_risk
                     );
                     self.pending_actions.push(PendingAction {
-                        id: Uuid::new_v4(), // Generate new UUID for local tracking
                         tool_call_id: action.tool_call_id.clone(),
                         tool_name: action.tool_name.clone(),
                         summary: action
@@ -748,12 +701,6 @@ impl AppState {
         self.cursor_position = self.input_buffer.len();
     }
 
-    /// Clear input buffer
-    pub fn clear_input(&mut self) {
-        self.input_buffer.clear();
-        self.cursor_position = 0;
-    }
-
     /// Get and clear the input buffer
     pub fn take_input(&mut self) -> String {
         let input = std::mem::take(&mut self.input_buffer);
@@ -776,36 +723,6 @@ impl AppState {
         self.scroll_offset = 0;
     }
 
-    /// Toggle message collapse state for selected message
-    pub fn toggle_selected_collapse(&mut self) {
-        if let Some(idx) = self.selected_message {
-            self.toggle_message_collapse(idx);
-        }
-    }
-
-    /// Toggle message collapse state by index
-    pub fn toggle_message_collapse(&mut self, index: usize) {
-        if let Some(msg) = self.messages.get_mut(index) {
-            // Only toggle if it's a collapsible type
-            if matches!(msg.role, MessageRole::Action | MessageRole::Observation) {
-                msg.collapsed = !msg.collapsed;
-            }
-        }
-    }
-
-    /// Toggle the last action's collapse state
-    pub fn toggle_last_action(&mut self) {
-        // Find the last action message
-        for i in (0..self.messages.len()).rev() {
-            if let Some(msg) = self.messages.get(i) {
-                if matches!(msg.role, MessageRole::Action) {
-                    self.toggle_message_collapse(i);
-                    return;
-                }
-            }
-        }
-    }
-
     /// Expand or collapse all actions
     pub fn toggle_all_actions(&mut self) {
         // Check if any action is collapsed
@@ -820,43 +737,6 @@ impl AppState {
             if matches!(msg.role, MessageRole::Action) {
                 msg.collapsed = new_state;
             }
-        }
-    }
-
-    /// Find message index at a given line offset (from the top of visible messages)
-    /// Returns (message_index, is_collapsible)
-    pub fn message_at_line(&self, line: usize) -> Option<(usize, bool)> {
-        let mut current_line = 0;
-        for (idx, msg) in self.messages.iter().enumerate() {
-            let msg_lines = self.estimate_message_lines(msg);
-            if line >= current_line && line < current_line + msg_lines {
-                let is_collapsible =
-                    matches!(msg.role, MessageRole::Action | MessageRole::Observation);
-                return Some((idx, is_collapsible));
-            }
-            current_line += msg_lines;
-        }
-        None
-    }
-
-    /// Estimate how many lines a message takes
-    fn estimate_message_lines(&self, msg: &DisplayMessage) -> usize {
-        match msg.role {
-            MessageRole::Action | MessageRole::Observation => {
-                if msg.collapsed {
-                    3 // header + preview + spacing
-                } else {
-                    // Rough estimate: header + content lines + spacing
-                    let content_lines = msg.content.lines().count().max(1);
-                    2 + content_lines
-                }
-            }
-            MessageRole::User | MessageRole::Assistant | MessageRole::Error => {
-                // Rough estimate based on content length
-                // +1 for spacing
-                (msg.content.len() / 80).max(1) + 1
-            }
-            MessageRole::System => 2, // single line + spacing
         }
     }
 
@@ -909,12 +789,6 @@ impl AppState {
     /// Check if agent is running
     pub fn is_running(&self) -> bool {
         self.execution_status == ExecutionStatus::Running
-    }
-
-    /// Check if waiting for confirmation
-    pub fn is_waiting_confirmation(&self) -> bool {
-        self.execution_status == ExecutionStatus::WaitingForConfirmation
-            || !self.pending_actions.is_empty()
     }
 
     /// Advance the spinner animation

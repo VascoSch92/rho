@@ -13,6 +13,7 @@ where
 {
     #[derive(Deserialize)]
     #[serde(untagged)]
+    #[allow(dead_code)]
     enum StringOrArray {
         String(String),
         Array(Vec<serde_json::Value>),
@@ -210,40 +211,6 @@ pub struct TokenEvent {
 }
 
 impl Event {
-    /// Get the event ID if available
-    pub fn id(&self) -> Option<&str> {
-        match self {
-            Event::ActionEvent(e) => e.base.id.as_deref(),
-            Event::ObservationEvent(e) => e.base.id.as_deref(),
-            Event::MessageEvent(e) => e.base.id.as_deref(),
-            Event::AgentErrorEvent(e) => e.base.id.as_deref(),
-            Event::ConversationStateUpdateEvent(e) => e.base.id.as_deref(),
-            Event::PauseEvent(e) => e.base.id.as_deref(),
-            Event::UserRejectObservation(e) => e.base.id.as_deref(),
-            Event::SystemPromptEvent(e) => e.base.id.as_deref(),
-            Event::Condensation(e) => e.base.id.as_deref(),
-            Event::TokenEvent(e) => e.base.id.as_deref(),
-            Event::Unknown => None,
-        }
-    }
-
-    /// Get the timestamp if available
-    pub fn timestamp(&self) -> Option<&str> {
-        match self {
-            Event::ActionEvent(e) => e.base.timestamp.as_deref(),
-            Event::ObservationEvent(e) => e.base.timestamp.as_deref(),
-            Event::MessageEvent(e) => e.base.timestamp.as_deref(),
-            Event::AgentErrorEvent(e) => e.base.timestamp.as_deref(),
-            Event::ConversationStateUpdateEvent(e) => e.base.timestamp.as_deref(),
-            Event::PauseEvent(e) => e.base.timestamp.as_deref(),
-            Event::UserRejectObservation(e) => e.base.timestamp.as_deref(),
-            Event::SystemPromptEvent(e) => e.base.timestamp.as_deref(),
-            Event::Condensation(e) => e.base.timestamp.as_deref(),
-            Event::TokenEvent(e) => e.base.timestamp.as_deref(),
-            Event::Unknown => None,
-        }
-    }
-
     /// Get a display-friendly type name
     pub fn type_name(&self) -> &'static str {
         match self {
