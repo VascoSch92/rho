@@ -166,7 +166,7 @@ impl DisplayMessage {
             id: None,
             role: MessageRole::Terminal,
             content: format!("$ {}\n{}", command, output.into()),
-            collapsed: true,
+            collapsed: false,
             tool_name: None,
             security_risk: None,
             accepted: false,

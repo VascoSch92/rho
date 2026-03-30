@@ -42,15 +42,13 @@ impl Widget for InputWidget<'_> {
             buf[(x, top_y)].set_fg(border_color);
         }
 
-        // Show "Terminal Mode" label on the right of the top line
+        // Show "Bash Mode" label on the left of the top line
         if is_terminal_mode {
-            let label = " Terminal Mode ";
-            let label_x = area.x + area.width.saturating_sub(label.len() as u16 + 1);
+            let label = " Bash Mode ";
             for (i, ch) in label.chars().enumerate() {
-                let x = label_x + i as u16;
+                let x = area.x + i as u16;
                 if x < area.x + area.width {
                     buf[(x, top_y)].set_char(ch);
-                    buf[(x, top_y)].set_fg(t.accent);
                     buf[(x, top_y)].set_style(
                         ratatui::style::Style::default()
                             .fg(t.accent)

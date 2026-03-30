@@ -309,28 +309,11 @@ impl<'a> MessageListWidget<'a> {
                     ),
                 ]));
 
-                // Output lines (collapsed = first 3 lines, expanded = all)
-                let output_lines: Vec<&str> = output.lines().collect();
-                let display_lines = if msg.collapsed {
-                    &output_lines[..output_lines.len().min(3)]
-                } else {
-                    &output_lines
-                };
-
-                for line in display_lines {
+                // Output lines — show all
+                for line in output.lines() {
                     lines.push(Line::from(vec![
                         Span::styled("│ ", Style::default().fg(t.accent)),
                         Span::styled(line.to_string(), Style::default().fg(t.muted)),
-                    ]));
-                }
-
-                if msg.collapsed && output_lines.len() > 3 {
-                    lines.push(Line::from(vec![
-                        Span::styled("│ ", Style::default().fg(t.accent)),
-                        Span::styled(
-                            format!("... ({} more lines)", output_lines.len() - 3),
-                            Style::default().fg(t.muted),
-                        ),
                     ]));
                 }
 
