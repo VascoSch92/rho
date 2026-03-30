@@ -76,7 +76,10 @@ impl<'a> MessageListWidget<'a> {
                 for (key, value) in obj {
                     let key_line = Line::from(vec![
                         Span::raw("   "),
-                        Span::styled(format!("{}:", key), Style::default().fg(t.accent).add_modifier(Modifier::BOLD)),
+                        Span::styled(
+                            format!("{}:", key),
+                            Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
+                        ),
                     ]);
                     lines.push(key_line);
 
@@ -101,7 +104,12 @@ impl<'a> MessageListWidget<'a> {
     }
 
     /// Format a JSON value with proper indentation
-    fn format_json_value(value: &serde_json::Value, width: usize, indent: usize, t: &Theme) -> Vec<Line<'static>> {
+    fn format_json_value(
+        value: &serde_json::Value,
+        width: usize,
+        indent: usize,
+        t: &Theme,
+    ) -> Vec<Line<'static>> {
         let mut lines = Vec::new();
         let indent_str = " ".repeat(indent);
 
@@ -146,7 +154,8 @@ impl<'a> MessageListWidget<'a> {
                         Span::raw(indent_str.clone()),
                         Span::styled(format!("[{}]", i), Style::default().fg(t.muted)),
                     ]));
-                    let item_lines = Self::format_json_value(item, width.saturating_sub(2), indent + 2, t);
+                    let item_lines =
+                        Self::format_json_value(item, width.saturating_sub(2), indent + 2, t);
                     lines.extend(item_lines);
                 }
             }
@@ -160,21 +169,35 @@ impl<'a> MessageListWidget<'a> {
                     match val {
                         serde_json::Value::String(s) if s.len() < width / 2 => {
                             if let Some(last) = lines.last_mut() {
-                                last.spans.push(Span::styled(s.clone(), Style::default().fg(t.foreground)));
+                                last.spans.push(Span::styled(
+                                    s.clone(),
+                                    Style::default().fg(t.foreground),
+                                ));
                             }
                         }
                         serde_json::Value::Number(n) => {
                             if let Some(last) = lines.last_mut() {
-                                last.spans.push(Span::styled(n.to_string(), Style::default().fg(t.primary)));
+                                last.spans.push(Span::styled(
+                                    n.to_string(),
+                                    Style::default().fg(t.primary),
+                                ));
                             }
                         }
                         serde_json::Value::Bool(b) => {
                             if let Some(last) = lines.last_mut() {
-                                last.spans.push(Span::styled(b.to_string(), Style::default().fg(t.primary)));
+                                last.spans.push(Span::styled(
+                                    b.to_string(),
+                                    Style::default().fg(t.primary),
+                                ));
                             }
                         }
                         _ => {
-                            let val_lines = Self::format_json_value(val, width.saturating_sub(2), indent + 2, t);
+                            let val_lines = Self::format_json_value(
+                                val,
+                                width.saturating_sub(2),
+                                indent + 2,
+                                t,
+                            );
                             lines.extend(val_lines);
                         }
                     }
@@ -231,7 +254,11 @@ impl<'a> MessageListWidget<'a> {
                         Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
                     ));
                 } else {
-                    let label = if msg.role == MessageRole::Action { "Action" } else { "Result" };
+                    let label = if msg.role == MessageRole::Action {
+                        "Action"
+                    } else {
+                        "Result"
+                    };
                     header_spans.push(Span::styled(label.to_string(), style));
                 }
 
@@ -252,20 +279,23 @@ impl<'a> MessageListWidget<'a> {
                         Span::styled(preview, Style::default().fg(t.muted)),
                     ]));
                 } else {
-                    let formatted_lines = Self::format_tool_content(&msg.content, width.saturating_sub(4), t);
+                    let formatted_lines =
+                        Self::format_tool_content(&msg.content, width.saturating_sub(4), t);
                     for formatted_line in formatted_lines {
-                        let mut new_spans = vec![Span::styled("│   ", Style::default().fg(t.muted))];
+                        let mut new_spans =
+                            vec![Span::styled("│   ", Style::default().fg(t.muted))];
                         new_spans.extend(formatted_line.spans);
                         lines.push(Line::from(new_spans));
                     }
                 }
-                lines.push(Line::from(vec![Span::styled("│", Style::default().fg(t.muted))]));
+                lines.push(Line::from(vec![Span::styled(
+                    "│",
+                    Style::default().fg(t.muted),
+                )]));
             }
             MessageRole::System => {
                 for line in msg.content.lines() {
-                    lines.push(Line::from(vec![
-                        Span::styled(line.to_string(), style),
-                    ]));
+                    lines.push(Line::from(vec![Span::styled(line.to_string(), style)]));
                 }
             }
             MessageRole::Error => {
@@ -323,12 +353,18 @@ impl Widget for MessageListWidget<'_> {
             let fun_fact = self.state.current_fun_fact();
 
             all_lines.push(Line::from(vec![
-                Span::styled(format!("  {}  ", spinner), Style::default().fg(t.primary).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("  {}  ", spinner),
+                    Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("Thinking...", Style::default().fg(t.primary)),
             ]));
             all_lines.push(Line::from(vec![
                 Span::styled("     ", Style::default()),
-                Span::styled(fun_fact.to_string(), Style::default().fg(t.muted).add_modifier(Modifier::ITALIC)),
+                Span::styled(
+                    fun_fact.to_string(),
+                    Style::default().fg(t.muted).add_modifier(Modifier::ITALIC),
+                ),
             ]));
             all_lines.push(Line::from(""));
         }
@@ -360,12 +396,10 @@ fn render_splash(area: Rect, buf: &mut Buffer, state: &AppState) {
     let box_width = banner_width + 4;
 
     lines.push(Line::from(""));
-    lines.push(Line::from(vec![
-        Span::styled(
-            format!("    ╭{}╮", "─".repeat(box_width)),
-            Style::default().fg(t.primary),
-        ),
-    ]));
+    lines.push(Line::from(vec![Span::styled(
+        format!("    ╭{}╮", "─".repeat(box_width)),
+        Style::default().fg(t.primary),
+    )]));
 
     lines.push(Line::from(vec![
         Span::styled("    │", Style::default().fg(t.primary)),
@@ -398,29 +432,34 @@ fn render_splash(area: Rect, buf: &mut Buffer, state: &AppState) {
         Span::styled("│", Style::default().fg(t.primary)),
     ]));
 
-    lines.push(Line::from(vec![
-        Span::styled(
-            format!("    ╰{}╯", "─".repeat(box_width)),
-            Style::default().fg(t.primary),
-        ),
-    ]));
+    lines.push(Line::from(vec![Span::styled(
+        format!("    ╰{}╯", "─".repeat(box_width)),
+        Style::default().fg(t.primary),
+    )]));
 
     lines.push(Line::from(""));
 
     lines.push(Line::from(vec![
         Span::styled("    ", Style::default()),
         Span::styled("Workspace: ", Style::default().fg(t.muted)),
-        Span::styled(truncate_path(&state.workspace_path, 50), Style::default().fg(t.foreground)),
+        Span::styled(
+            truncate_path(&state.workspace_path, 50),
+            Style::default().fg(t.foreground),
+        ),
     ]));
 
     lines.push(Line::from(""));
 
-    lines.push(Line::from(vec![
-        Span::styled("    Tips:", Style::default().fg(t.primary).add_modifier(Modifier::BOLD)),
-    ]));
+    lines.push(Line::from(vec![Span::styled(
+        "    Tips:",
+        Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
+    )]));
     lines.push(Line::from(vec![
         Span::styled("      • ", Style::default().fg(t.muted)),
-        Span::styled("Ask questions, edit files, or run commands", Style::default().fg(t.foreground)),
+        Span::styled(
+            "Ask questions, edit files, or run commands",
+            Style::default().fg(t.foreground),
+        ),
     ]));
     lines.push(Line::from(vec![
         Span::styled("      • ", Style::default().fg(t.muted)),
@@ -443,9 +482,10 @@ fn render_splash(area: Rect, buf: &mut Buffer, state: &AppState) {
 
     lines.push(Line::from(""));
     lines.push(Line::from(""));
-    lines.push(Line::from(vec![
-        Span::styled("    What do you want to build?", Style::default().fg(t.primary).add_modifier(Modifier::BOLD)),
-    ]));
+    lines.push(Line::from(vec![Span::styled(
+        "    What do you want to build?",
+        Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
+    )]));
 
     let paragraph = Paragraph::new(lines);
     paragraph.render(area, buf);
@@ -476,9 +516,7 @@ impl<'a> MessageDetailWidget<'a> {
 impl Widget for MessageDetailWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let style = MessageListWidget::role_style(self.message.role, &Theme::default());
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_style(style);
+        let block = Block::default().borders(Borders::ALL).border_style(style);
 
         let inner = block.inner(area);
         block.render(area, buf);

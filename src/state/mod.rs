@@ -51,14 +51,14 @@ pub enum InputMode {
 /// A display message in the conversation
 #[derive(Debug, Clone)]
 pub struct DisplayMessage {
-    pub id: Option<String>,  // Event ID (UUID or ULID)
+    pub id: Option<String>, // Event ID (UUID or ULID)
     pub role: MessageRole,
     pub content: String,
     pub timestamp: Instant,
     pub collapsed: bool,
     pub tool_name: Option<String>,
     pub security_risk: Option<SecurityRisk>,
-    pub accepted: bool,  // Whether this action was accepted (shows checkmark)
+    pub accepted: bool, // Whether this action was accepted (shows checkmark)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -219,8 +219,7 @@ impl Notification {
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// LLM Provider
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum LlmProvider {
     OpenHands,
     #[default]
@@ -298,20 +297,12 @@ impl LlmProvider {
                 "devstral-2512",
                 "devstral-small-2507",
             ],
-            LlmProvider::Google => vec![
-                "gemini-2.5-pro",
-                "gemini-2.5-flash",
-                "gemini-2.0-flash",
-            ],
-            LlmProvider::DeepSeek => vec![
-                "deepseek-chat",
-                "deepseek-reasoner",
-            ],
+            LlmProvider::Google => vec!["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"],
+            LlmProvider::DeepSeek => vec!["deepseek-chat", "deepseek-reasoner"],
             LlmProvider::Other(_) => vec![],
         }
     }
 }
-
 
 /// Main application state
 pub struct AppState {
@@ -346,7 +337,7 @@ pub struct AppState {
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub total_cost: f64,
-    pub context_window: u64,  // Max context size for the model
+    pub context_window: u64, // Max context size for the model
 
     // Exit flag
     pub should_exit: bool,
@@ -357,9 +348,9 @@ pub struct AppState {
     pub show_help_modal: bool,
     pub show_policy_modal: bool,
     pub show_settings_modal: bool,
-    pub settings_field: usize,          // 0=Provider, 1=Model, 2=API Key, 3=Base URL
-    pub settings_editing: bool,         // Whether currently editing a field
-    pub settings_edit_buffer: String,   // Buffer for editing text fields
+    pub settings_field: usize, // 0=Provider, 1=Model, 2=API Key, 3=Base URL
+    pub settings_editing: bool, // Whether currently editing a field
+    pub settings_edit_buffer: String, // Buffer for editing text fields
 
     // LLM Settings
     pub llm_provider: LlmProvider,
@@ -397,7 +388,11 @@ pub struct AppState {
 impl Default for AppState {
     fn default() -> Self {
         let provider = LlmProvider::Anthropic;
-        let default_model = provider.models().first().map(|s| s.to_string()).unwrap_or_default();
+        let default_model = provider
+            .models()
+            .first()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
         Self {
             server_url: "http://127.0.0.1:8000".to_string(),
             connected: false,
@@ -419,7 +414,7 @@ impl Default for AppState {
             prompt_tokens: 0,
             completion_tokens: 0,
             total_cost: 0.0,
-            context_window: 200000,  // Default, will be updated from server
+            context_window: 200000, // Default, will be updated from server
             should_exit: false,
             exit_confirmation_pending: false,
             show_token_modal: false,
@@ -475,7 +470,7 @@ impl AppState {
                 if msg.base.source.as_deref() == Some("user") {
                     return;
                 }
-                
+
                 if let Some(text) = msg.get_text() {
                     if let Some(ref llm_msg) = msg.llm_message {
                         let display_msg = match llm_msg.role.as_str() {
@@ -502,7 +497,10 @@ impl AppState {
                         id: Uuid::new_v4(), // Generate new UUID for local tracking
                         tool_call_id: action.tool_call_id.clone(),
                         tool_name: action.tool_name.clone(),
-                        summary: action.summary.clone().unwrap_or_else(|| action.tool_name.clone()),
+                        summary: action
+                            .summary
+                            .clone()
+                            .unwrap_or_else(|| action.tool_name.clone()),
                         security_risk: action.security_risk.unwrap_or_default(),
                     });
                     self.input_mode = InputMode::Confirmation;
@@ -532,7 +530,8 @@ impl AppState {
                 tracing::debug!("State update key='{}' value={}", update.key, update.value);
                 match update.key.as_str() {
                     "execution_status" => {
-                        if let Ok(status) = serde_json::from_value::<ExecutionStatus>(update.value) {
+                        if let Ok(status) = serde_json::from_value::<ExecutionStatus>(update.value)
+                        {
                             let was_running = self.execution_status == ExecutionStatus::Running;
                             self.execution_status = status;
                             // Request stats refresh when execution finishes
@@ -542,9 +541,16 @@ impl AppState {
                             // Show error message when execution fails
                             if status == ExecutionStatus::Error {
                                 // Only add generic message if no error message was already shown
-                                let has_recent_error = self.messages.iter().rev().take(3).any(|m| m.role == MessageRole::Error);
+                                let has_recent_error = self
+                                    .messages
+                                    .iter()
+                                    .rev()
+                                    .take(3)
+                                    .any(|m| m.role == MessageRole::Error);
                                 if !has_recent_error {
-                                    self.add_message(DisplayMessage::error("Agent encountered an error. Check logs for details."));
+                                    self.add_message(DisplayMessage::error(
+                                        "Agent encountered an error. Check logs for details.",
+                                    ));
                                 }
                             }
                         }
@@ -610,7 +616,7 @@ impl AppState {
             let mut total_cost = 0.0;
             let mut total_prompt = 0u64;
             let mut total_completion = 0u64;
-            
+
             for (_usage_id, metrics) in usage_map {
                 if let Some(cost) = metrics.get("accumulated_cost").and_then(|v| v.as_f64()) {
                     total_cost += cost;
@@ -619,7 +625,9 @@ impl AppState {
                     if let Some(prompt) = usage.get("prompt_tokens").and_then(|v| v.as_u64()) {
                         total_prompt += prompt;
                     }
-                    if let Some(completion) = usage.get("completion_tokens").and_then(|v| v.as_u64()) {
+                    if let Some(completion) =
+                        usage.get("completion_tokens").and_then(|v| v.as_u64())
+                    {
                         total_completion += completion;
                     }
                     // Get context window from token usage
@@ -630,24 +638,30 @@ impl AppState {
                     }
                 }
             }
-            
+
             self.total_cost = total_cost;
             self.prompt_tokens = total_prompt;
             self.completion_tokens = total_completion;
             self.total_tokens = total_prompt + total_completion;
-            
+
             if self.total_tokens > 0 || self.total_cost > 0.0 {
-                tracing::info!("Updated metrics: tokens={} (prompt={}, completion={}), cost={}, context={}", 
-                    self.total_tokens, self.prompt_tokens, self.completion_tokens, self.total_cost, self.context_window);
+                tracing::info!(
+                    "Updated metrics: tokens={} (prompt={}, completion={}), cost={}, context={}",
+                    self.total_tokens,
+                    self.prompt_tokens,
+                    self.completion_tokens,
+                    self.total_cost,
+                    self.context_window
+                );
             }
             return;
         }
-        
+
         // Direct format: {"accumulated_cost": 0.01, "accumulated_token_usage": {...}}
         if let Some(cost) = value.get("accumulated_cost").and_then(|v| v.as_f64()) {
             self.total_cost = cost;
         }
-        
+
         if let Some(usage) = value.get("accumulated_token_usage") {
             if let Some(prompt) = usage.get("prompt_tokens").and_then(|v| v.as_u64()) {
                 self.prompt_tokens = prompt;
@@ -661,10 +675,16 @@ impl AppState {
                 }
             }
             self.total_tokens = self.prompt_tokens + self.completion_tokens;
-            
+
             if self.total_tokens > 0 {
-                tracing::info!("Updated metrics: tokens={} (prompt={}, completion={}), cost={}, context={}", 
-                    self.total_tokens, self.prompt_tokens, self.completion_tokens, self.total_cost, self.context_window);
+                tracing::info!(
+                    "Updated metrics: tokens={} (prompt={}, completion={}), cost={}, context={}",
+                    self.total_tokens,
+                    self.prompt_tokens,
+                    self.completion_tokens,
+                    self.total_cost,
+                    self.context_window
+                );
             }
         }
     }
@@ -762,7 +782,7 @@ impl AppState {
             self.toggle_message_collapse(idx);
         }
     }
-    
+
     /// Toggle message collapse state by index
     pub fn toggle_message_collapse(&mut self, index: usize) {
         if let Some(msg) = self.messages.get_mut(index) {
@@ -789,10 +809,11 @@ impl AppState {
     /// Expand or collapse all actions
     pub fn toggle_all_actions(&mut self) {
         // Check if any action is collapsed
-        let any_collapsed = self.messages.iter().any(|msg| {
-            matches!(msg.role, MessageRole::Action) && msg.collapsed
-        });
-        
+        let any_collapsed = self
+            .messages
+            .iter()
+            .any(|msg| matches!(msg.role, MessageRole::Action) && msg.collapsed);
+
         // If any is collapsed, expand all; otherwise collapse all
         let new_state = !any_collapsed;
         for msg in &mut self.messages {
@@ -801,7 +822,7 @@ impl AppState {
             }
         }
     }
-    
+
     /// Find message index at a given line offset (from the top of visible messages)
     /// Returns (message_index, is_collapsible)
     pub fn message_at_line(&self, line: usize) -> Option<(usize, bool)> {
@@ -809,14 +830,15 @@ impl AppState {
         for (idx, msg) in self.messages.iter().enumerate() {
             let msg_lines = self.estimate_message_lines(msg);
             if line >= current_line && line < current_line + msg_lines {
-                let is_collapsible = matches!(msg.role, MessageRole::Action | MessageRole::Observation);
+                let is_collapsible =
+                    matches!(msg.role, MessageRole::Action | MessageRole::Observation);
                 return Some((idx, is_collapsible));
             }
             current_line += msg_lines;
         }
         None
     }
-    
+
     /// Estimate how many lines a message takes
     fn estimate_message_lines(&self, msg: &DisplayMessage) -> usize {
         match msg.role {
@@ -831,7 +853,7 @@ impl AppState {
             }
             MessageRole::User | MessageRole::Assistant | MessageRole::Error => {
                 // Rough estimate based on content length
-                 // +1 for spacing
+                // +1 for spacing
                 (msg.content.len() / 80).max(1) + 1
             }
             MessageRole::System => 2, // single line + spacing

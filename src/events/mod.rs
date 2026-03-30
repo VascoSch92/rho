@@ -31,9 +31,9 @@ where
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventBase {
     #[serde(default)]
-    pub id: Option<String>,  // Can be UUID or ULID string
+    pub id: Option<String>, // Can be UUID or ULID string
     #[serde(default)]
-    pub timestamp: Option<String>,  // ISO timestamp string
+    pub timestamp: Option<String>, // ISO timestamp string
     #[serde(default)]
     pub source: Option<String>,
 }

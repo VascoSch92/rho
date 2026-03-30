@@ -56,10 +56,7 @@ impl Widget for TopStatusBar<'_> {
         // Workspace: "wrk /dirname"
         spans.push(Span::styled("wrk ", Style::default().fg(t.muted)));
         let dir_name = Self::last_dir(&self.state.workspace_path);
-        spans.push(Span::styled(
-            dir_name,
-            Style::default().fg(t.foreground),
-        ));
+        spans.push(Span::styled(dir_name, Style::default().fg(t.foreground)));
 
         spans.push(Span::styled(" │ ", yellow));
 
@@ -67,16 +64,17 @@ impl Widget for TopStatusBar<'_> {
         spans.push(Span::styled("id ", Style::default().fg(t.muted)));
         if let Some(id) = self.state.conversation_id {
             let id_str = id.to_string();
-            let short_id = if id_str.len() >= 8 { &id_str[..8] } else { &id_str };
+            let short_id = if id_str.len() >= 8 {
+                &id_str[..8]
+            } else {
+                &id_str
+            };
             spans.push(Span::styled(
                 short_id.to_string(),
                 Style::default().fg(t.accent),
             ));
         } else {
-            spans.push(Span::styled(
-                "---",
-                Style::default().fg(t.muted),
-            ));
+            spans.push(Span::styled("---", Style::default().fg(t.muted)));
         }
 
         // Closing: ├── and continue with line
@@ -87,10 +85,7 @@ impl Widget for TopStatusBar<'_> {
         let remaining = (area.width as usize).saturating_sub(content_len);
 
         if remaining > 0 {
-            spans.push(Span::styled(
-                "─".repeat(remaining),
-                yellow,
-            ));
+            spans.push(Span::styled("─".repeat(remaining), yellow));
         }
 
         let line = Line::from(spans);
@@ -152,10 +147,7 @@ impl Widget for BottomStatusBar<'_> {
         let mut spans = vec![];
 
         // Policy indicator
-        spans.push(Span::styled(
-            "Policy: ",
-            Style::default().fg(t.muted),
-        ));
+        spans.push(Span::styled("Policy: ", Style::default().fg(t.muted)));
 
         let policy_color = match self.state.confirmation_policy {
             crate::state::ConfirmationPolicy::AlwaysConfirm => t.success,
@@ -191,7 +183,7 @@ impl Widget for BottomStatusBar<'_> {
         } else if percentage < 75 {
             t.primary
         } else if percentage < 90 {
-            Color::Rgb(255, 165, 0)  // Orange
+            Color::Rgb(255, 165, 0) // Orange
         } else {
             t.error
         };
@@ -209,8 +201,14 @@ impl Widget for BottomStatusBar<'_> {
         let empty = bar_width - filled;
 
         spans.push(Span::styled("Context: [", Style::default().fg(t.muted)));
-        spans.push(Span::styled("█".repeat(filled), Style::default().fg(bar_color)));
-        spans.push(Span::styled("░".repeat(empty), Style::default().fg(t.muted)));
+        spans.push(Span::styled(
+            "█".repeat(filled),
+            Style::default().fg(bar_color),
+        ));
+        spans.push(Span::styled(
+            "░".repeat(empty),
+            Style::default().fg(t.muted),
+        ));
         spans.push(Span::styled("] ", Style::default().fg(t.muted)));
         spans.push(Span::styled(
             format!("{}%", percentage),
@@ -262,7 +260,7 @@ impl<'a> NotificationWidget<'a> {
 
 impl Widget for NotificationWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        use ratatui::widgets::{Block, Borders, BorderType, Clear};
+        use ratatui::widgets::{Block, BorderType, Borders, Clear};
 
         if let Some(notif) = self.state.notifications.last() {
             use crate::state::NotificationSeverity;
@@ -328,7 +326,9 @@ impl Widget for RightBorder {
 
         let x = area.x + area.width - 1;
         for y in area.y..area.y + area.height {
-            buf[(x, y)].set_char('│').set_style(Style::default().fg(Color::Rgb(114, 121, 135)));
+            buf[(x, y)]
+                .set_char('│')
+                .set_style(Style::default().fg(Color::Rgb(114, 121, 135)));
         }
     }
 }

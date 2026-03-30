@@ -27,10 +27,10 @@ pub fn render(frame: &mut Frame, state: &AppState) {
 
     // Main vertical layout: header, messages, input, status bar
     let chunks = Layout::vertical([
-        Constraint::Length(1),        // Top status bar (single line with box chars)
-        Constraint::Min(8),           // Messages area
-        Constraint::Length(input_h),  // Input area (dynamic for multiline)
-        Constraint::Length(1),        // Bottom status bar
+        Constraint::Length(1),       // Top status bar (single line with box chars)
+        Constraint::Min(8),          // Messages area
+        Constraint::Length(input_h), // Input area (dynamic for multiline)
+        Constraint::Length(1),       // Bottom status bar
     ])
     .split(area);
 

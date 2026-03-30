@@ -51,12 +51,18 @@ impl Widget for HelpModal<'_> {
 
         lines.push(Line::from(vec![
             Span::styled("  /new       ", Style::default().fg(t.primary)),
-            Span::styled("Start a new conversation", Style::default().fg(t.foreground)),
+            Span::styled(
+                "Start a new conversation",
+                Style::default().fg(t.foreground),
+            ),
         ]));
 
         lines.push(Line::from(vec![
             Span::styled("  /usage     ", Style::default().fg(t.primary)),
-            Span::styled("Show token usage details", Style::default().fg(t.foreground)),
+            Span::styled(
+                "Show token usage details",
+                Style::default().fg(t.foreground),
+            ),
         ]));
 
         lines.push(Line::from(vec![
@@ -71,7 +77,10 @@ impl Widget for HelpModal<'_> {
 
         lines.push(Line::from(vec![
             Span::styled("  /confirm   ", Style::default().fg(t.primary)),
-            Span::styled("Show/change confirmation policy", Style::default().fg(t.foreground)),
+            Span::styled(
+                "Show/change confirmation policy",
+                Style::default().fg(t.foreground),
+            ),
         ]));
 
         lines.push(Line::from(vec![
@@ -84,23 +93,30 @@ impl Widget for HelpModal<'_> {
         // Bash mode
         lines.push(Line::from(vec![
             Span::styled("  !<cmd>     ", Style::default().fg(t.primary)),
-            Span::styled("Run bash command (e.g. !ls, !pwd)", Style::default().fg(t.foreground)),
+            Span::styled(
+                "Run bash command (e.g. !ls, !pwd)",
+                Style::default().fg(t.foreground),
+            ),
         ]));
 
         lines.push(Line::from(""));
 
         // Divider
         let divider_width = (modal_width as usize).saturating_sub(6);
-        lines.push(Line::from(vec![
-            Span::styled(format!("  {}", "─".repeat(divider_width)), Style::default().fg(t.muted)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            format!("  {}", "─".repeat(divider_width)),
+            Style::default().fg(t.muted),
+        )]));
 
         lines.push(Line::from(""));
 
         // Keyboard shortcuts
         lines.push(Line::from(vec![
             Span::styled("  Alt+Enter  ", Style::default().fg(t.accent)),
-            Span::styled("New line in input (or Shift+Enter)", Style::default().fg(t.muted)),
+            Span::styled(
+                "New line in input (or Shift+Enter)",
+                Style::default().fg(t.muted),
+            ),
         ]));
 
         lines.push(Line::from(vec![
@@ -204,9 +220,10 @@ impl Widget for PolicyModal<'_> {
 
         // Divider
         let divider_width = (modal_width as usize).saturating_sub(6);
-        lines.push(Line::from(vec![
-            Span::styled(format!("  {}", "─".repeat(divider_width)), Style::default().fg(t.muted)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            format!("  {}", "─".repeat(divider_width)),
+            Style::default().fg(t.muted),
+        )]));
 
         lines.push(Line::from(""));
 

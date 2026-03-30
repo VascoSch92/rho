@@ -96,9 +96,10 @@ impl Widget for TokenUsageModal<'_> {
 
         // Divider
         let divider_width = (modal_width as usize).saturating_sub(6);
-        lines.push(Line::from(vec![
-            Span::styled(format!("  {}", "─".repeat(divider_width)), Style::default().fg(t.muted)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            format!("  {}", "─".repeat(divider_width)),
+            Style::default().fg(t.muted),
+        )]));
 
         lines.push(Line::from(""));
 

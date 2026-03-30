@@ -177,9 +177,9 @@ impl AgentConfig {
             kind: "Agent",
             llm,
             tools: Some(vec![
-                ToolConfig::new("terminal"),      // TerminalTool -> terminal
-                ToolConfig::new("file_editor"),   // FileEditorTool -> file_editor
-                ToolConfig::new("task_tracker"),  // TaskTrackerTool -> task_tracker
+                ToolConfig::new("terminal"),     // TerminalTool -> terminal
+                ToolConfig::new("file_editor"),  // FileEditorTool -> file_editor
+                ToolConfig::new("task_tracker"), // TaskTrackerTool -> task_tracker
             ]),
         }
     }
@@ -260,10 +260,7 @@ impl AgentServerClient {
     /// Check server health
     /// The server returns plain text "OK" on success
     pub async fn health(&self) -> Result<HealthResponse> {
-        let resp = self
-            .request(reqwest::Method::GET, "/health")
-            .send()
-            .await?;
+        let resp = self.request(reqwest::Method::GET, "/health").send().await?;
 
         if !resp.status().is_success() {
             return Err(ClientError::Server {
@@ -274,7 +271,9 @@ impl AgentServerClient {
 
         // Server returns plain "OK" string, not JSON
         let text = resp.text().await?;
-        Ok(HealthResponse { ok: text.trim() == "OK" })
+        Ok(HealthResponse {
+            ok: text.trim() == "OK",
+        })
     }
 
     /// Get server info
@@ -358,14 +357,23 @@ impl AgentServerClient {
 
     /// Send a message to the conversation
     /// Endpoint: POST /api/conversations/{id}/events
-    pub async fn send_message(&self, conversation_id: Uuid, message: &str, run: bool) -> Result<()> {
+    pub async fn send_message(
+        &self,
+        conversation_id: Uuid,
+        message: &str,
+        run: bool,
+    ) -> Result<()> {
         let msg = if run {
             SendMessageRequest::user(message).with_run()
         } else {
             SendMessageRequest::user(message)
         };
 
-        tracing::debug!("Sending message to conversation {}: run={}", conversation_id, run);
+        tracing::debug!(
+            "Sending message to conversation {}: run={}",
+            conversation_id,
+            run
+        );
 
         let resp = self
             .request(
@@ -446,12 +454,19 @@ impl AgentServerClient {
             reason: reason.map(|s| s.to_string()),
         };
 
-        tracing::debug!("Responding to confirmation: accept={}, reason={:?}", accept, req.reason);
+        tracing::debug!(
+            "Responding to confirmation: accept={}, reason={:?}",
+            accept,
+            req.reason
+        );
 
         let resp = self
             .request(
                 reqwest::Method::POST,
-                &format!("/api/conversations/{}/events/respond_to_confirmation", conversation_id),
+                &format!(
+                    "/api/conversations/{}/events/respond_to_confirmation",
+                    conversation_id
+                ),
             )
             .json(&req)
             .send()
@@ -474,16 +489,15 @@ impl AgentServerClient {
         conversation_id: Uuid,
         reason: Option<&str>,
     ) -> Result<()> {
-        self.respond_to_confirmation(conversation_id, false, reason).await
+        self.respond_to_confirmation(conversation_id, false, reason)
+            .await
     }
 
     /// Accept pending actions
     /// Convenience wrapper around respond_to_confirmation
-    pub async fn accept_pending_actions(
-        &self,
-        conversation_id: Uuid,
-    ) -> Result<()> {
-        self.respond_to_confirmation(conversation_id, true, None).await
+    pub async fn accept_pending_actions(&self, conversation_id: Uuid) -> Result<()> {
+        self.respond_to_confirmation(conversation_id, true, None)
+            .await
     }
 
     /// Execute a bash command in the workspace

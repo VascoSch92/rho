@@ -17,9 +17,8 @@ use crossterm::{
     event::{self, Event, KeyCode, KeyModifiers},
     execute,
     terminal::{
-        disable_raw_mode, enable_raw_mode, 
-        Clear, ClearType,
-        EnterAlternateScreen, LeaveAlternateScreen,
+        disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen,
+        LeaveAlternateScreen,
     },
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
@@ -29,13 +28,13 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
 
 use client::{
-    AgentServerClient, AgentConfig, EventStream, ExecutionStatus,
-    LLMConfig, LocalWorkspace, SendMessageRequest, ServerConfirmationPolicy, StartConversationRequest,
+    AgentConfig, AgentServerClient, EventStream, ExecutionStatus, LLMConfig, LocalWorkspace,
+    SendMessageRequest, ServerConfirmationPolicy, StartConversationRequest,
 };
-use ui::ConfirmOption;
+use state::{AppState, ConfirmationPolicy, DisplayMessage, InputMode, LlmProvider, Notification};
 use ui::settings_modal::SETTINGS_FIELD_COUNT;
 use ui::theme::Theme;
-use state::{AppState, ConfirmationPolicy, DisplayMessage, InputMode, LlmProvider, Notification};
+use ui::ConfirmOption;
 
 /// Rho - AI-powered coding assistant
 #[derive(Parser, Debug)]
@@ -52,7 +51,12 @@ struct Args {
     session_api_key: Option<String>,
 
     /// LLM model name (e.g., "anthropic/claude-sonnet-4-5-20250929", "openai/gpt-4o")
-    #[arg(short, long, env = "LLM_MODEL", default_value = "anthropic/claude-sonnet-4-5-20250929")]
+    #[arg(
+        short,
+        long,
+        env = "LLM_MODEL",
+        default_value = "anthropic/claude-sonnet-4-5-20250929"
+    )]
     model: String,
 
     /// LLM API key (can also use LLM_API_KEY env var)
@@ -123,7 +127,11 @@ fn parse_model_arg(model_arg: &str) -> (LlmProvider, String) {
         let model = model_arg.to_string();
         let provider = if model.contains("claude") {
             LlmProvider::Anthropic
-        } else if model.contains("gpt") || model.starts_with("o1") || model.starts_with("o3") || model.starts_with("o4") {
+        } else if model.contains("gpt")
+            || model.starts_with("o1")
+            || model.starts_with("o3")
+            || model.starts_with("o4")
+        {
             LlmProvider::OpenAI
         } else if model.contains("gemini") {
             LlmProvider::Google
@@ -144,11 +152,10 @@ async fn main() -> Result<()> {
 
     // Initialize logging - write to file when debug is enabled
     let log_level = if args.debug { "debug" } else { "warn" };
-    
+
     if args.debug {
         // Write logs to file so they're visible even with TUI
-        let log_file = std::fs::File::create("rho.log")
-            .expect("Failed to create log file");
+        let log_file = std::fs::File::create("rho.log").expect("Failed to create log file");
         tracing_subscriber::registry()
             .with(
                 tracing_subscriber::EnvFilter::try_from_default_env()
@@ -158,7 +165,7 @@ async fn main() -> Result<()> {
                 tracing_subscriber::fmt::layer()
                     .with_target(false)
                     .with_ansi(false)
-                    .with_writer(std::sync::Mutex::new(log_file))
+                    .with_writer(std::sync::Mutex::new(log_file)),
             )
             .init();
     } else {
@@ -209,9 +216,16 @@ fn start_agent_server(server_url: &str) -> Option<Child> {
     info!("Starting agent server on {}:{}", host, port);
 
     let mut cmd = Command::new(&venv_python);
-    cmd.args(["-m", "openhands.agent_server", "--port", &port.to_string(), "--host", &host])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
+    cmd.args([
+        "-m",
+        "openhands.agent_server",
+        "--port",
+        &port.to_string(),
+        "--host",
+        &host,
+    ])
+    .stdout(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null());
 
     // Start in its own process group so we can kill all sub-processes on exit
     #[cfg(unix)]
@@ -220,8 +234,7 @@ fn start_agent_server(server_url: &str) -> Option<Child> {
         cmd.process_group(0);
     }
 
-    match cmd.spawn()
-    {
+    match cmd.spawn() {
         Ok(child) => {
             info!("Agent server started (pid={})", child.id());
             Some(child)
@@ -242,7 +255,6 @@ fn stop_agent_server(server_process: &mut Option<Child>) {
         // Send SIGTERM to the entire process group so sub-processes (uvicorn workers, etc.) also exit
         #[cfg(unix)]
         {
-            
             // Kill the process group (negative pid)
             unsafe {
                 libc::kill(-(pid as i32), libc::SIGTERM);
@@ -272,14 +284,14 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     // Enter alternate screen and clear scrollback buffer so mouse scroll doesn't show
     // previous terminal output
     execute!(
-        stdout, 
+        stdout,
         EnterAlternateScreen,
         Clear(ClearType::All),
-        Clear(ClearType::Purge)  // Clear scrollback buffer
+        Clear(ClearType::Purge) // Clear scrollback buffer
     )?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    
+
     // Hide the blinking terminal cursor - we render our own visual cursor
     terminal.hide_cursor()?;
 
@@ -293,8 +305,14 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     state.theme_name = args.theme.to_lowercase();
 
     // Set workspace path for display
-    let workspace_path = args.workspace.clone()
-        .or_else(|| std::env::current_dir().ok().map(|p| p.to_string_lossy().to_string()))
+    let workspace_path = args
+        .workspace
+        .clone()
+        .or_else(|| {
+            std::env::current_dir()
+                .ok()
+                .map(|p| p.to_string_lossy().to_string())
+        })
         .unwrap_or_else(|| ".".to_string());
     state.set_workspace(workspace_path);
 
@@ -314,7 +332,7 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
             return Err(anyhow::anyhow!("LLM_API_KEY is required"));
         }
     };
-    
+
     // Set base URL if provided
     state.llm_base_url = args.llm_base_url.clone();
 
@@ -360,8 +378,8 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
     // Track ticks for animation timing
     let mut tick_count: u64 = 0;
-    let spinner_interval = 1;      // Update spinner every tick (100ms)
-    let fun_fact_interval = 100;   // Change fun fact every 10 seconds (100 ticks)
+    let spinner_interval = 1; // Update spinner every tick (100ms)
+    let fun_fact_interval = 100; // Change fun fact every 10 seconds (100 ticks)
 
     loop {
         // Draw UI
@@ -406,8 +424,15 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
                 Event::Key(key) => {
                     // Handle key events based on current mode
                     if let Some(cmd) = handle_key_event(&mut state, key, &args) {
-                        if process_command(&mut state, &client, &mut event_stream, cmd, &args, &llm_config)
-                            .await?
+                        if process_command(
+                            &mut state,
+                            &client,
+                            &mut event_stream,
+                            cmd,
+                            &args,
+                            &llm_config,
+                        )
+                        .await?
                         {
                             break; // Exit requested
                         }
@@ -427,11 +452,11 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
                 debug!("Received event: {:?}", event.type_name());
                 state.process_event(event);
             }
-            
+
             // Check if stream is still connected - attempt reconnect if disconnected
             if !stream.is_connected() {
                 warn!("WebSocket disconnected, attempting to reconnect...");
-                
+
                 // Try to reconnect if we have a conversation
                 if let Some(conv_id) = state.conversation_id {
                     let ws_url = client.conversation_websocket_url(conv_id);
@@ -444,7 +469,9 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
                             error!("Failed to reconnect WebSocket: {}", e);
                             // Only show error if we're supposed to be running
                             if state.is_running() {
-                                state.add_message(DisplayMessage::error("WebSocket disconnected. Reconnect failed."));
+                                state.add_message(DisplayMessage::error(
+                                    "WebSocket disconnected. Reconnect failed.",
+                                ));
                                 state.execution_status = ExecutionStatus::Error;
                             }
                             event_stream = None;
@@ -495,10 +522,7 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
     // Restore terminal
     disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen
-    )?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
 
     info!("Rho TUI exited");
@@ -506,15 +530,12 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 }
 
 /// Handle key events and return an optional command
-fn handle_key_event(
-    state: &mut AppState,
-    key: event::KeyEvent,
-    args: &Args,
-) -> Option<AppCommand> {
+fn handle_key_event(state: &mut AppState, key: event::KeyEvent, args: &Args) -> Option<AppCommand> {
     // Global key bindings
     match (key.code, key.modifiers) {
         // Quit shortcuts
-        (KeyCode::Char('q'), KeyModifiers::CONTROL) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+        (KeyCode::Char('q'), KeyModifiers::CONTROL)
+        | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
             if args.exit_without_confirmation {
                 return Some(AppCommand::ForceQuit);
             } else if state.exit_confirmation_pending {
@@ -597,7 +618,8 @@ fn handle_key_event(
                 return None;
             }
             KeyCode::Right => {
-                state.confirmation_selected = (state.confirmation_selected + 1).min(num_options - 1);
+                state.confirmation_selected =
+                    (state.confirmation_selected + 1).min(num_options - 1);
                 return None;
             }
             // Enter confirms the selected option
@@ -668,17 +690,17 @@ fn handle_key_event(
     match key.code {
         KeyCode::Enter => {
             // Alt+Enter or Shift+Enter: add newline
-            if key.modifiers.contains(KeyModifiers::ALT) 
-                || key.modifiers.contains(KeyModifiers::SHIFT) 
+            if key.modifiers.contains(KeyModifiers::ALT)
+                || key.modifiers.contains(KeyModifiers::SHIFT)
             {
                 state.input_buffer.insert(state.cursor_position, '\n');
                 state.cursor_position += 1;
                 return None;
             }
-            
+
             // Regular Enter: submit
             state.show_command_menu = false;
-            
+
             let input = state.take_input();
             if input.is_empty() {
                 return None;
@@ -712,7 +734,8 @@ fn handle_key_event(
         KeyCode::Backspace => {
             state.handle_backspace();
             // Update command menu visibility
-            state.show_command_menu = state.input_buffer.starts_with('/') && state.input_buffer.len() <= 10;
+            state.show_command_menu =
+                state.input_buffer.starts_with('/') && state.input_buffer.len() <= 10;
         }
         KeyCode::Delete => {
             state.handle_delete();
@@ -758,7 +781,7 @@ fn handle_key_event(
 fn handle_settings_modal_input(state: &mut AppState, key: event::KeyEvent) -> Option<AppCommand> {
     let providers = LlmProvider::all();
     let models = state.llm_provider.models();
-    
+
     if state.settings_editing {
         // In editing mode for text fields (API key, base URL)
         match key.code {
@@ -797,7 +820,7 @@ fn handle_settings_modal_input(state: &mut AppState, key: event::KeyEvent) -> Op
         }
         return None;
     }
-    
+
     // Normal navigation mode
     match key.code {
         KeyCode::Esc => {
@@ -819,11 +842,18 @@ fn handle_settings_modal_input(state: &mut AppState, key: event::KeyEvent) -> Op
                 0 => {
                     // Provider - cycle backward
                     if let Some(idx) = providers.iter().position(|p| *p == state.llm_provider) {
-                        let new_idx = if idx == 0 { providers.len() - 1 } else { idx - 1 };
+                        let new_idx = if idx == 0 {
+                            providers.len() - 1
+                        } else {
+                            idx - 1
+                        };
                         state.llm_provider = providers[new_idx].clone();
                         // Reset model to first available for new provider
                         let new_models = state.llm_provider.models();
-                        state.llm_model = new_models.first().map(|s| s.to_string()).unwrap_or_default();
+                        state.llm_model = new_models
+                            .first()
+                            .map(|s| s.to_string())
+                            .unwrap_or_default();
                     }
                 }
                 1 => {
@@ -845,7 +875,10 @@ fn handle_settings_modal_input(state: &mut AppState, key: event::KeyEvent) -> Op
                         state.llm_provider = providers[new_idx].clone();
                         // Reset model to first available for new provider
                         let new_models = state.llm_provider.models();
-                        state.llm_model = new_models.first().map(|s| s.to_string()).unwrap_or_default();
+                        state.llm_model = new_models
+                            .first()
+                            .map(|s| s.to_string())
+                            .unwrap_or_default();
                     }
                 }
                 1 => {
@@ -869,16 +902,22 @@ fn handle_settings_modal_input(state: &mut AppState, key: event::KeyEvent) -> Op
                     // Provider/Model fields cycle on Enter too
                     match state.settings_field {
                         0 => {
-                            if let Some(idx) = providers.iter().position(|p| *p == state.llm_provider) {
+                            if let Some(idx) =
+                                providers.iter().position(|p| *p == state.llm_provider)
+                            {
                                 let new_idx = (idx + 1) % providers.len();
                                 state.llm_provider = providers[new_idx].clone();
                                 let new_models = state.llm_provider.models();
-                                state.llm_model = new_models.first().map(|s| s.to_string()).unwrap_or_default();
+                                state.llm_model = new_models
+                                    .first()
+                                    .map(|s| s.to_string())
+                                    .unwrap_or_default();
                             }
                         }
                         1 => {
                             if !models.is_empty() {
-                                if let Some(idx) = models.iter().position(|m| *m == state.llm_model) {
+                                if let Some(idx) = models.iter().position(|m| *m == state.llm_model)
+                                {
                                     let new_idx = (idx + 1) % models.len();
                                     state.llm_model = models[new_idx].to_string();
                                 }
@@ -936,7 +975,8 @@ fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppComman
             } else {
                 let available = Theme::available().join(", ");
                 state.add_message(DisplayMessage::system(format!(
-                    "Current theme: {}. Available: {}", state.theme_name, available,
+                    "Current theme: {}. Available: {}",
+                    state.theme_name, available,
                 )));
             }
             None
@@ -990,10 +1030,11 @@ async fn process_command(
             // Ensure we have a conversation
             if state.conversation_id.is_none() {
                 // Build workspace config
-                let workspace_dir = args.workspace.clone()
-                    .unwrap_or_else(|| std::env::current_dir()
+                let workspace_dir = args.workspace.clone().unwrap_or_else(|| {
+                    std::env::current_dir()
                         .map(|p| p.to_string_lossy().to_string())
-                        .unwrap_or_else(|_| ".".to_string()));
+                        .unwrap_or_else(|_| ".".to_string())
+                });
 
                 // Build conversation request with default development tools
                 // Convert client-side policy to server-side policy
@@ -1002,7 +1043,7 @@ async fn process_command(
                     ConfirmationPolicy::AlwaysConfirm => ServerConfirmationPolicy::AlwaysConfirm,
                     ConfirmationPolicy::ConfirmRisky => ServerConfirmationPolicy::ConfirmRisky,
                 };
-                
+
                 let request = StartConversationRequest {
                     agent: AgentConfig::with_default_tools(llm_config.clone()),
                     workspace: LocalWorkspace::new(workspace_dir),
@@ -1067,7 +1108,7 @@ async fn process_command(
         AppCommand::RunBashCommand(cmd) => {
             // Run bash command locally and display output
             state.add_message(DisplayMessage::system(format!("$ {}", cmd)));
-            
+
             // Execute the command
             match std::process::Command::new("sh")
                 .arg("-c")
@@ -1077,7 +1118,7 @@ async fn process_command(
                 Ok(output) => {
                     let stdout = String::from_utf8_lossy(&output.stdout);
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    
+
                     if !stdout.is_empty() {
                         // Trim trailing newlines and display
                         let stdout_trimmed = stdout.trim_end();
@@ -1095,7 +1136,10 @@ async fn process_command(
                     }
                 }
                 Err(e) => {
-                    state.add_message(DisplayMessage::error(format!("Failed to run command: {}", e)));
+                    state.add_message(DisplayMessage::error(format!(
+                        "Failed to run command: {}",
+                        e
+                    )));
                 }
             }
         }
@@ -1177,7 +1221,10 @@ async fn process_command(
         AppCommand::ConfirmDefer => {
             state.clear_pending_actions();
             state.execution_status = ExecutionStatus::Paused;
-            state.notify(Notification::info("Deferred", "Actions deferred, agent paused"));
+            state.notify(Notification::info(
+                "Deferred",
+                "Actions deferred, agent paused",
+            ));
         }
 
         AppCommand::SetPolicy(policy) => {
@@ -1204,5 +1251,3 @@ async fn process_command(
 
     Ok(false)
 }
-
-

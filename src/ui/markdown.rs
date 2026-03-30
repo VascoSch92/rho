@@ -103,7 +103,8 @@ impl MarkdownRenderer {
         }
 
         let style = self.current_style();
-        self.current_line.push(Span::styled(text.to_string(), style));
+        self.current_line
+            .push(Span::styled(text.to_string(), style));
     }
 
     fn flush_line(&mut self) {
@@ -140,9 +141,10 @@ impl MarkdownRenderer {
             Event::Rule => {
                 self.flush_line();
                 let rule = "─".repeat(self.width.min(60));
-                self.lines.push(Line::from(vec![
-                    Span::styled(rule, Style::default().fg(self.t.muted)),
-                ]));
+                self.lines.push(Line::from(vec![Span::styled(
+                    rule,
+                    Style::default().fg(self.t.muted),
+                )]));
             }
             _ => {}
         }
@@ -176,9 +178,10 @@ impl MarkdownRenderer {
                 self.flush_line();
                 self.in_code_block = true;
                 self.code_block_content.clear();
-                self.lines.push(Line::from(vec![
-                    Span::styled("```", Style::default().fg(self.t.muted)),
-                ]));
+                self.lines.push(Line::from(vec![Span::styled(
+                    "```",
+                    Style::default().fg(self.t.muted),
+                )]));
             }
             Tag::List(_) => {
                 self.in_list = true;
@@ -228,15 +231,13 @@ impl MarkdownRenderer {
                 for line in self.code_block_content.lines() {
                     self.lines.push(Line::from(vec![
                         Span::styled("  ", Style::default()),
-                        Span::styled(
-                            line.to_string(),
-                            Style::default().fg(self.t.primary),
-                        ),
+                        Span::styled(line.to_string(), Style::default().fg(self.t.primary)),
                     ]));
                 }
-                self.lines.push(Line::from(vec![
-                    Span::styled("```", Style::default().fg(self.t.muted)),
-                ]));
+                self.lines.push(Line::from(vec![Span::styled(
+                    "```",
+                    Style::default().fg(self.t.muted),
+                )]));
                 self.in_code_block = false;
                 self.code_block_content.clear();
             }
@@ -259,7 +260,9 @@ impl MarkdownRenderer {
             TagEnd::Link => {
                 self.current_line.push(Span::styled(
                     self.link_text.clone(),
-                    Style::default().fg(self.t.accent).add_modifier(Modifier::UNDERLINED),
+                    Style::default()
+                        .fg(self.t.accent)
+                        .add_modifier(Modifier::UNDERLINED),
                 ));
                 self.current_line.push(Span::styled(
                     format!(" ({})", self.link_url),

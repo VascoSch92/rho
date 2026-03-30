@@ -30,7 +30,14 @@ pub struct Theme {
 impl Theme {
     /// List all available theme names.
     pub fn available() -> &'static [&'static str] {
-        &["rho", "dracula", "catppuccin", "tokyonight", "solarized", "gruvbox"]
+        &[
+            "rho",
+            "dracula",
+            "catppuccin",
+            "tokyonight",
+            "solarized",
+            "gruvbox",
+        ]
     }
 
     /// Get a theme by name (case-insensitive). Returns default if unknown.
@@ -50,88 +57,88 @@ impl Theme {
         Self {
             primary: Color::Rgb(255, 225, 101),    // #ffe165
             accent: Color::Rgb(39, 125, 255),      // #277dff
-            foreground: Color::Rgb(255, 255, 255),  // #ffffff
+            foreground: Color::Rgb(255, 255, 255), // #ffffff
             background: Color::Reset,
-            muted: Color::Rgb(114, 121, 135),       // #727987
-            border: Color::Rgb(80, 80, 80),         // #505050
-            error: Color::Rgb(255, 107, 107),       // #ff6b6b
-            success: Color::Rgb(107, 255, 107),     // #6bff6b
-            warning: Color::Rgb(255, 225, 101),     // #ffe165
+            muted: Color::Rgb(114, 121, 135),   // #727987
+            border: Color::Rgb(80, 80, 80),     // #505050
+            error: Color::Rgb(255, 107, 107),   // #ff6b6b
+            success: Color::Rgb(107, 255, 107), // #6bff6b
+            warning: Color::Rgb(255, 225, 101), // #ffe165
         }
     }
 
     /// Dracula theme.
     pub fn dracula() -> Self {
         Self {
-            primary: Color::Rgb(189, 147, 249),     // purple
-            accent: Color::Rgb(139, 233, 253),      // cyan
-            foreground: Color::Rgb(248, 248, 242),  // fg
+            primary: Color::Rgb(189, 147, 249),    // purple
+            accent: Color::Rgb(139, 233, 253),     // cyan
+            foreground: Color::Rgb(248, 248, 242), // fg
             background: Color::Reset,
-            muted: Color::Rgb(98, 114, 164),        // comment
-            border: Color::Rgb(68, 71, 90),         // current line
-            error: Color::Rgb(255, 85, 85),         // red
-            success: Color::Rgb(80, 250, 123),      // green
-            warning: Color::Rgb(241, 250, 140),     // yellow
+            muted: Color::Rgb(98, 114, 164),    // comment
+            border: Color::Rgb(68, 71, 90),     // current line
+            error: Color::Rgb(255, 85, 85),     // red
+            success: Color::Rgb(80, 250, 123),  // green
+            warning: Color::Rgb(241, 250, 140), // yellow
         }
     }
 
     /// Catppuccin Mocha theme.
     pub fn catppuccin() -> Self {
         Self {
-            primary: Color::Rgb(203, 166, 247),     // mauve
-            accent: Color::Rgb(137, 180, 250),      // blue
-            foreground: Color::Rgb(205, 214, 244),  // text
+            primary: Color::Rgb(203, 166, 247),    // mauve
+            accent: Color::Rgb(137, 180, 250),     // blue
+            foreground: Color::Rgb(205, 214, 244), // text
             background: Color::Reset,
-            muted: Color::Rgb(127, 132, 156),       // overlay0
-            border: Color::Rgb(88, 91, 112),        // surface2
-            error: Color::Rgb(243, 139, 168),       // red
-            success: Color::Rgb(166, 227, 161),     // green
-            warning: Color::Rgb(249, 226, 175),     // yellow
+            muted: Color::Rgb(127, 132, 156),   // overlay0
+            border: Color::Rgb(88, 91, 112),    // surface2
+            error: Color::Rgb(243, 139, 168),   // red
+            success: Color::Rgb(166, 227, 161), // green
+            warning: Color::Rgb(249, 226, 175), // yellow
         }
     }
 
     /// Tokyo Night theme.
     pub fn tokyonight() -> Self {
         Self {
-            primary: Color::Rgb(122, 162, 247),     // blue
-            accent: Color::Rgb(187, 154, 247),      // purple
-            foreground: Color::Rgb(192, 202, 245),  // fg
+            primary: Color::Rgb(122, 162, 247),    // blue
+            accent: Color::Rgb(187, 154, 247),     // purple
+            foreground: Color::Rgb(192, 202, 245), // fg
             background: Color::Reset,
-            muted: Color::Rgb(86, 95, 137),         // comment
-            border: Color::Rgb(61, 89, 161),        // dark blue
-            error: Color::Rgb(247, 118, 142),       // red
-            success: Color::Rgb(158, 206, 106),     // green
-            warning: Color::Rgb(224, 175, 104),     // yellow
+            muted: Color::Rgb(86, 95, 137),     // comment
+            border: Color::Rgb(61, 89, 161),    // dark blue
+            error: Color::Rgb(247, 118, 142),   // red
+            success: Color::Rgb(158, 206, 106), // green
+            warning: Color::Rgb(224, 175, 104), // yellow
         }
     }
 
     /// Solarized Dark theme.
     pub fn solarized() -> Self {
         Self {
-            primary: Color::Rgb(181, 137, 0),       // yellow
-            accent: Color::Rgb(38, 139, 210),       // blue
-            foreground: Color::Rgb(131, 148, 150),  // base0
+            primary: Color::Rgb(181, 137, 0),      // yellow
+            accent: Color::Rgb(38, 139, 210),      // blue
+            foreground: Color::Rgb(131, 148, 150), // base0
             background: Color::Reset,
-            muted: Color::Rgb(88, 110, 117),        // base01
-            border: Color::Rgb(7, 54, 66),          // base02
-            error: Color::Rgb(220, 50, 47),         // red
-            success: Color::Rgb(133, 153, 0),       // green
-            warning: Color::Rgb(203, 75, 22),       // orange
+            muted: Color::Rgb(88, 110, 117),  // base01
+            border: Color::Rgb(7, 54, 66),    // base02
+            error: Color::Rgb(220, 50, 47),   // red
+            success: Color::Rgb(133, 153, 0), // green
+            warning: Color::Rgb(203, 75, 22), // orange
         }
     }
 
     /// Gruvbox Dark theme.
     pub fn gruvbox() -> Self {
         Self {
-            primary: Color::Rgb(250, 189, 47),      // yellow
-            accent: Color::Rgb(131, 165, 152),      // aqua
-            foreground: Color::Rgb(235, 219, 178),  // fg
+            primary: Color::Rgb(250, 189, 47),     // yellow
+            accent: Color::Rgb(131, 165, 152),     // aqua
+            foreground: Color::Rgb(235, 219, 178), // fg
             background: Color::Reset,
-            muted: Color::Rgb(146, 131, 116),       // gray
-            border: Color::Rgb(80, 73, 69),         // bg2
-            error: Color::Rgb(251, 73, 52),         // red
-            success: Color::Rgb(184, 187, 38),      // green
-            warning: Color::Rgb(254, 128, 25),      // orange
+            muted: Color::Rgb(146, 131, 116),  // gray
+            border: Color::Rgb(80, 73, 69),    // bg2
+            error: Color::Rgb(251, 73, 52),    // red
+            success: Color::Rgb(184, 187, 38), // green
+            warning: Color::Rgb(254, 128, 25), // orange
         }
     }
 }
@@ -153,12 +160,7 @@ pub const RHO_BANNER: &[&str] = &[
 ];
 
 /// Rho compact logo (for header)
-pub const RHO_LOGO: &[&str] = &[
-    r"|  _ \ ",
-    r"| |_) |",
-    r"|  _ < ",
-    r"|_| \_\",
-];
+pub const RHO_LOGO: &[&str] = &[r"|  _ \ ", r"| |_) |", r"|  _ < ", r"|_| \_\"];
 
 /// Spinner style variants
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -173,7 +175,9 @@ impl SpinnerStyle {
     pub fn frames(&self) -> &'static [&'static str] {
         match self {
             SpinnerStyle::Braille => &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"],
-            SpinnerStyle::BoxBuilding => &["▖", "▘", "▝", "▗", "▚", "▞", "█", "▞", "▚", "▗", "▝", "▘"],
+            SpinnerStyle::BoxBuilding => {
+                &["▖", "▘", "▝", "▗", "▚", "▞", "█", "▞", "▚", "▗", "▝", "▘"]
+            }
             SpinnerStyle::ArrowSpin => &["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"],
             SpinnerStyle::BouncingBar => &[
                 "[=    ]", "[==   ]", "[===  ]", "[ === ]", "[  ===]", "[   ==]", "[    =]",

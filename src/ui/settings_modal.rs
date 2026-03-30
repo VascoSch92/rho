@@ -29,7 +29,7 @@ impl<'a> SettingsModal<'a> {
         } else if key.len() <= 8 {
             "*".repeat(key.len())
         } else {
-            format!("{}...{}", &key[..4], &key[key.len()-4..])
+            format!("{}...{}", &key[..4], &key[key.len() - 4..])
         }
     }
 }
@@ -155,7 +155,10 @@ impl Widget for SettingsModal<'_> {
         let url_display = if is_selected && editing {
             format!("{}_", &self.state.settings_edit_buffer)
         } else {
-            self.state.llm_base_url.clone().unwrap_or_else(|| "(default)".to_string())
+            self.state
+                .llm_base_url
+                .clone()
+                .unwrap_or_else(|| "(default)".to_string())
         };
         let value_style = if is_selected && editing {
             Style::default().fg(t.success)
@@ -177,25 +180,39 @@ impl Widget for SettingsModal<'_> {
 
         // Divider
         let divider_width = (modal_width as usize).saturating_sub(6);
-        lines.push(Line::from(vec![
-            Span::styled(format!("   {}", "─".repeat(divider_width - 3)), Style::default().fg(t.muted)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            format!("   {}", "─".repeat(divider_width - 3)),
+            Style::default().fg(t.muted),
+        )]));
 
         lines.push(Line::from(""));
 
         // Available models hint
         lines.push(Line::from(vec![
             Span::styled("   Models for ", Style::default().fg(t.muted)),
-            Span::styled(self.state.llm_provider.display_name(), Style::default().fg(t.accent)),
+            Span::styled(
+                self.state.llm_provider.display_name(),
+                Style::default().fg(t.accent),
+            ),
             Span::styled(":", Style::default().fg(t.muted)),
         ]));
 
         let models = self.state.llm_provider.models();
-        let model_list: String = models.iter().take(4).copied().collect::<Vec<_>>().join(", ");
-        let suffix = if models.len() > 4 { format!(" (+{})", models.len() - 4) } else { String::new() };
-        lines.push(Line::from(vec![
-            Span::styled(format!("   {}{}", model_list, suffix), Style::default().fg(t.muted)),
-        ]));
+        let model_list: String = models
+            .iter()
+            .take(4)
+            .copied()
+            .collect::<Vec<_>>()
+            .join(", ");
+        let suffix = if models.len() > 4 {
+            format!(" (+{})", models.len() - 4)
+        } else {
+            String::new()
+        };
+        lines.push(Line::from(vec![Span::styled(
+            format!("   {}{}", model_list, suffix),
+            Style::default().fg(t.muted),
+        )]));
 
         lines.push(Line::from(""));
 

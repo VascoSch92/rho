@@ -41,13 +41,19 @@ impl Widget for StartupModal<'_> {
         let lines = vec![
             Line::from(""),
             Line::from(vec![
-                Span::styled("  Preparing everything", Style::default().fg(t.foreground).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "  Preparing everything",
+                    Style::default()
+                        .fg(t.foreground)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(dots, Style::default().fg(t.accent)),
             ]),
             Line::from(""),
-            Line::from(vec![
-                Span::styled("  Starting Agent Server", Style::default().fg(t.muted)),
-            ]),
+            Line::from(vec![Span::styled(
+                "  Starting Agent Server",
+                Style::default().fg(t.muted),
+            )]),
             Line::from(""),
         ];
 

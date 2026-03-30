@@ -31,7 +31,11 @@ impl ConfirmOption {
     }
 
     pub fn all() -> &'static [ConfirmOption] {
-        &[ConfirmOption::Accept, ConfirmOption::AlwaysAccept, ConfirmOption::Reject]
+        &[
+            ConfirmOption::Accept,
+            ConfirmOption::AlwaysAccept,
+            ConfirmOption::Reject,
+        ]
     }
 }
 
@@ -49,9 +53,7 @@ impl<'a> ConfirmationPanel<'a> {
         match risk {
             SecurityRisk::Unknown => Style::default().fg(t.muted),
             SecurityRisk::Low => Style::default().fg(t.success),
-            SecurityRisk::Medium => Style::default()
-                .fg(t.primary)
-                .add_modifier(Modifier::BOLD),
+            SecurityRisk::Medium => Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
             SecurityRisk::High => Style::default().fg(t.error).add_modifier(Modifier::BOLD),
         }
     }
@@ -98,9 +100,10 @@ impl Widget for ConfirmationPanel<'_> {
         lines.push(Line::from(""));
 
         // Header text
-        lines.push(Line::from(vec![
-            Span::styled("  Action requiring confirmation:", Style::default().fg(t.muted)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "  Action requiring confirmation:",
+            Style::default().fg(t.muted),
+        )]));
 
         lines.push(Line::from(""));
 
@@ -118,21 +121,20 @@ impl Widget for ConfirmationPanel<'_> {
         }
 
         if self.state.pending_actions.len() > 3 {
-            lines.push(Line::from(vec![
-                Span::styled(
-                    format!("  ... and {} more", self.state.pending_actions.len() - 3),
-                    Style::default().fg(t.muted),
-                ),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                format!("  ... and {} more", self.state.pending_actions.len() - 3),
+                Style::default().fg(t.muted),
+            )]));
         }
 
         lines.push(Line::from(""));
 
         // Divider
         let divider_width = (modal_width as usize).saturating_sub(6);
-        lines.push(Line::from(vec![
-            Span::styled(format!("  {}", "─".repeat(divider_width)), Style::default().fg(t.muted)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            format!("  {}", "─".repeat(divider_width)),
+            Style::default().fg(t.muted),
+        )]));
 
         lines.push(Line::from(""));
 
@@ -149,9 +151,15 @@ impl Widget for ConfirmationPanel<'_> {
             let is_selected = i == selected;
             let style = if is_selected {
                 match opt {
-                    ConfirmOption::Accept => Style::default().fg(t.success).add_modifier(Modifier::BOLD),
-                    ConfirmOption::AlwaysAccept => Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
-                    ConfirmOption::Reject => Style::default().fg(t.error).add_modifier(Modifier::BOLD),
+                    ConfirmOption::Accept => {
+                        Style::default().fg(t.success).add_modifier(Modifier::BOLD)
+                    }
+                    ConfirmOption::AlwaysAccept => {
+                        Style::default().fg(t.primary).add_modifier(Modifier::BOLD)
+                    }
+                    ConfirmOption::Reject => {
+                        Style::default().fg(t.error).add_modifier(Modifier::BOLD)
+                    }
                 }
             } else {
                 Style::default().fg(t.muted)
@@ -227,9 +235,15 @@ impl Widget for ExitConfirmationModal<'_> {
             Line::from(""),
             Line::from(vec![
                 Span::styled("  Press ", Style::default().fg(t.muted)),
-                Span::styled("Y", Style::default().fg(t.error).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "Y",
+                    Style::default().fg(t.error).add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(" to exit, ", Style::default().fg(t.muted)),
-                Span::styled("N", Style::default().fg(t.success).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "N",
+                    Style::default().fg(t.success).add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(" to stay", Style::default().fg(t.muted)),
             ]),
         ];
@@ -241,9 +255,7 @@ impl Widget for ExitConfirmationModal<'_> {
             .border_style(Style::default().fg(t.accent))
             .title(Span::styled(
                 " Exit ",
-                Style::default()
-                    .fg(t.primary)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
             ));
 
         let inner = block.inner(modal_area);
