@@ -220,8 +220,10 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// LLM Provider
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default)]
 pub enum LlmProvider {
     OpenHands,
+    #[default]
     Anthropic,
     OpenAI,
     Mistral,
@@ -310,11 +312,6 @@ impl LlmProvider {
     }
 }
 
-impl Default for LlmProvider {
-    fn default() -> Self {
-        LlmProvider::Anthropic
-    }
-}
 
 /// Main application state
 pub struct AppState {
@@ -834,8 +831,8 @@ impl AppState {
             }
             MessageRole::User | MessageRole::Assistant | MessageRole::Error => {
                 // Rough estimate based on content length
-                let lines = (msg.content.len() / 80).max(1) + 1; // +1 for spacing
-                lines
+                 // +1 for spacing
+                (msg.content.len() / 80).max(1) + 1
             }
             MessageRole::System => 2, // single line + spacing
         }

@@ -191,7 +191,7 @@ impl Widget for SettingsModal<'_> {
         ]));
 
         let models = self.state.llm_provider.models();
-        let model_list: String = models.iter().take(4).map(|s| *s).collect::<Vec<_>>().join(", ");
+        let model_list: String = models.iter().take(4).copied().collect::<Vec<_>>().join(", ");
         let suffix = if models.len() > 4 { format!(" (+{})", models.len() - 4) } else { String::new() };
         lines.push(Line::from(vec![
             Span::styled(format!("   {}{}", model_list, suffix), Style::default().fg(t.muted)),

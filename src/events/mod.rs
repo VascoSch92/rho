@@ -3,7 +3,6 @@
 //! These types are deserialized from the Agent Server WebSocket stream.
 //! The SDK uses `kind` field for discriminated unions.
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize};
 use uuid::Uuid;
 

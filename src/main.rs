@@ -242,7 +242,7 @@ fn stop_agent_server(server_process: &mut Option<Child>) {
         // Send SIGTERM to the entire process group so sub-processes (uvicorn workers, etc.) also exit
         #[cfg(unix)]
         {
-            use std::os::unix::process::ExitStatusExt;
+            
             // Kill the process group (negative pid)
             unsafe {
                 libc::kill(-(pid as i32), libc::SIGTERM);
@@ -375,17 +375,17 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
         // Animation updates
         tick_count = tick_count.wrapping_add(1);
-        if tick_count % spinner_interval == 0 {
+        if tick_count.is_multiple_of(spinner_interval) {
             state.tick_spinner();
         }
-        if tick_count % fun_fact_interval == 0 {
+        if tick_count.is_multiple_of(fun_fact_interval) {
             state.next_fun_fact();
         }
 
         // Poll server health while starting up (every ~1s = 10 ticks)
         if state.server_starting {
             state.server_starting_tick = state.server_starting_tick.wrapping_add(1);
-            if tick_count % 10 == 0 {
+            if tick_count.is_multiple_of(10) {
                 match client.health().await {
                     Ok(_) => {
                         state.server_starting = false;
@@ -405,15 +405,12 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
             match event::read()? {
                 Event::Key(key) => {
                     // Handle key events based on current mode
-                    match handle_key_event(&mut state, key, &args) {
-                        Some(cmd) => {
-                            if process_command(&mut state, &client, &mut event_stream, cmd, &args, &llm_config)
-                                .await?
-                            {
-                                break; // Exit requested
-                            }
+                    if let Some(cmd) = handle_key_event(&mut state, key, &args) {
+                        if process_command(&mut state, &client, &mut event_stream, cmd, &args, &llm_config)
+                            .await?
+                        {
+                            break; // Exit requested
                         }
-                        None => {}
                     }
                 }
                 Event::Mouse(_) => {
@@ -715,11 +712,7 @@ fn handle_key_event(
         KeyCode::Backspace => {
             state.handle_backspace();
             // Update command menu visibility
-            if state.input_buffer.starts_with('/') && state.input_buffer.len() <= 10 {
-                state.show_command_menu = true;
-            } else {
-                state.show_command_menu = false;
-            }
+            state.show_command_menu = state.input_buffer.starts_with('/') && state.input_buffer.len() <= 10;
         }
         KeyCode::Delete => {
             state.handle_delete();

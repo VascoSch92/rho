@@ -8,7 +8,7 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
-use crate::state::{AppState, VERSION};
+use crate::state::AppState;
 
 /// Top status bar showing compact header
 pub struct TopStatusBar<'a> {

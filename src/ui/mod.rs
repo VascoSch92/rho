@@ -14,5 +14,4 @@ pub mod theme;
 mod token_modal;
 
 pub use confirmation::ConfirmOption;
-pub use input::input_height;
 pub use layout::render;
