@@ -1,0 +1,64 @@
+[package]
+name = "rho"
+version = "0.1.0"
+edition = "2021"
+description = "Rho - Terminal User Interface built with Ratatui"
+license = "MIT"
+
+[dependencies]
+# TUI Framework
+ratatui = { version = "0.30", features = ["unstable-widget-ref"] }
+crossterm = { version = "0.29", features = ["event-stream"] }
+
+# Async Runtime
+tokio = { version = "1.44", features = ["full", "sync", "macros", "rt-multi-thread"] }
+tokio-stream = "0.1"
+futures = "0.3"
+
+# HTTP Client & WebSocket
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# CLI Arguments
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# UUID handling
+uuid = { version = "1.16", features = ["v4", "serde"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# URL handling
+url = "2.5"
+
+# Clipboard
+arboard = "3.4"
+
+# Unicode width for text handling
+unicode-width = "0.2"
+
+# Textwrap for wrapping long lines
+textwrap = "0.16"
+
+# Unix process management
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+pulldown-cmark = "0.13.3"
+bytes = "1.11.1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
