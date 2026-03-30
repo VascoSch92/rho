@@ -9,10 +9,10 @@ use ratatui::{
 };
 use textwrap::wrap;
 
+use crate::config::theme::{Theme, RHO_BANNER};
 use crate::events::SecurityRisk;
 use crate::state::{AppState, DisplayMessage, MessageRole, VERSION};
 use crate::ui::markdown::render_markdown;
-use crate::ui::theme::{Theme, RHO_BANNER};
 
 /// Message list widget showing conversation history
 pub struct MessageListWidget<'a> {
@@ -31,6 +31,7 @@ impl<'a> MessageListWidget<'a> {
             MessageRole::System => Style::default().fg(t.muted),
             MessageRole::Action => Style::default().fg(t.primary),
             MessageRole::Error => Style::default().fg(t.error).add_modifier(Modifier::BOLD),
+            MessageRole::Terminal => Style::default().fg(t.accent),
         }
     }
 
@@ -41,29 +42,6 @@ impl<'a> MessageListWidget<'a> {
             SecurityRisk::Medium => Style::default().fg(t.primary),
             SecurityRisk::High => Style::default().fg(t.error).add_modifier(Modifier::BOLD),
         }
-    }
-
-    /// Extract a preview from content (for collapsed view)
-    fn extract_preview(content: &str, max_len: usize) -> String {
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(content) {
-            if let Some(cmd) = json.get("command").and_then(|v| v.as_str()) {
-                let preview: String = cmd.chars().take(max_len).collect();
-                let ellipsis = if cmd.len() > max_len { "..." } else { "" };
-                return format!("{}{}", preview.replace('\n', " "), ellipsis);
-            }
-            if let Some(path) = json.get("path").and_then(|v| v.as_str()) {
-                return format!("path: {}", path);
-            }
-            if let Some(text) = json.get("text").and_then(|v| v.as_str()) {
-                let preview: String = text.chars().take(max_len - 6).collect();
-                let ellipsis = if text.len() > max_len - 6 { "..." } else { "" };
-                return format!("text: {}{}", preview.replace('\n', " "), ellipsis);
-            }
-        }
-
-        let preview: String = content.chars().take(max_len).collect();
-        let ellipsis = if content.len() > max_len { "..." } else { "" };
-        format!("{}{}", preview.replace('\n', " "), ellipsis)
     }
 
     /// Format tool content nicely for expanded view
@@ -239,58 +217,62 @@ impl<'a> MessageListWidget<'a> {
                 }
             }
             MessageRole::Action => {
-                let mut header_spans = vec![];
+                // Content format: "args_display\nsummary"
+                // tool_name and security_risk are in separate fields
+                let (args_line, summary_line) =
+                    msg.content.split_once('\n').unwrap_or((&msg.content, ""));
 
-                header_spans.push(Span::styled("│ ", Style::default().fg(t.muted)));
+                // First line: tool_name(args) RISK
+                let mut header_spans = vec![];
 
                 if msg.accepted {
                     header_spans.push(Span::styled("✓ ", Style::default().fg(t.success)));
                 }
 
-                if let Some(ref tool) = msg.tool_name {
+                // Tool name in accent/blue + bold
+                let tool_name = msg.tool_name.as_deref().unwrap_or("Action");
+                header_spans.push(Span::styled(
+                    tool_name.to_string(),
+                    Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
+                ));
+
+                // Arguments in grey
+                if !args_line.is_empty() {
                     header_spans.push(Span::styled(
-                        tool.clone(),
-                        Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
+                        format!("({})", args_line),
+                        Style::default().fg(t.muted),
                     ));
-                } else {
-                    let label = if msg.role == MessageRole::Action {
-                        "Action"
-                    } else {
-                        "Result"
-                    };
-                    header_spans.push(Span::styled(label.to_string(), style));
                 }
 
+                // Security risk in its own color
                 if let Some(risk) = msg.security_risk {
                     header_spans.push(Span::raw(" "));
                     header_spans.push(Span::styled(
-                        format!("[{}]", risk),
+                        format!("{}", risk),
                         Self::security_risk_style(risk, t),
                     ));
                 }
 
                 lines.push(Line::from(header_spans));
 
+                // Second line: ⎿  summary
                 if msg.collapsed {
-                    let preview = Self::extract_preview(&msg.content, 70);
-                    lines.push(Line::from(vec![
-                        Span::styled("│   ", Style::default().fg(t.muted)),
-                        Span::styled(preview, Style::default().fg(t.muted)),
-                    ]));
+                    if !summary_line.is_empty() {
+                        lines.push(Line::from(vec![
+                            Span::styled("  ⎿  ", Style::default().fg(t.muted)),
+                            Span::styled(summary_line.to_string(), Style::default().fg(t.muted)),
+                        ]));
+                    }
                 } else {
                     let formatted_lines =
-                        Self::format_tool_content(&msg.content, width.saturating_sub(4), t);
+                        Self::format_tool_content(&msg.content, width.saturating_sub(6), t);
                     for formatted_line in formatted_lines {
                         let mut new_spans =
-                            vec![Span::styled("│   ", Style::default().fg(t.muted))];
+                            vec![Span::styled("  ⎿  ", Style::default().fg(t.muted))];
                         new_spans.extend(formatted_line.spans);
                         lines.push(Line::from(new_spans));
                     }
                 }
-                lines.push(Line::from(vec![Span::styled(
-                    "│",
-                    Style::default().fg(t.muted),
-                )]));
             }
             MessageRole::System => {
                 for line in msg.content.lines() {
@@ -314,6 +296,50 @@ impl<'a> MessageListWidget<'a> {
                     }
                 }
             }
+            MessageRole::Terminal => {
+                // Content format: "$ command\noutput"
+                let (cmd_line, output) = msg.content.split_once('\n').unwrap_or((&msg.content, ""));
+
+                // Header: command line
+                lines.push(Line::from(vec![
+                    Span::styled("┌─ ", Style::default().fg(t.accent)),
+                    Span::styled(
+                        cmd_line.to_string(),
+                        Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
+                    ),
+                ]));
+
+                // Output lines (collapsed = first 3 lines, expanded = all)
+                let output_lines: Vec<&str> = output.lines().collect();
+                let display_lines = if msg.collapsed {
+                    &output_lines[..output_lines.len().min(3)]
+                } else {
+                    &output_lines
+                };
+
+                for line in display_lines {
+                    lines.push(Line::from(vec![
+                        Span::styled("│ ", Style::default().fg(t.accent)),
+                        Span::styled(line.to_string(), Style::default().fg(t.muted)),
+                    ]));
+                }
+
+                if msg.collapsed && output_lines.len() > 3 {
+                    lines.push(Line::from(vec![
+                        Span::styled("│ ", Style::default().fg(t.accent)),
+                        Span::styled(
+                            format!("... ({} more lines)", output_lines.len() - 3),
+                            Style::default().fg(t.muted),
+                        ),
+                    ]));
+                }
+
+                // Footer
+                lines.push(Line::from(vec![Span::styled(
+                    "└─",
+                    Style::default().fg(t.accent),
+                )]));
+            }
         }
 
         lines.push(Line::from(""));
@@ -330,17 +356,13 @@ impl Widget for MessageListWidget<'_> {
             area.height,
         );
 
-        if self.state.messages.is_empty() {
-            render_splash(inner_area, buf, self.state);
-            return;
-        }
-
         let t = &self.state.theme;
         let mut all_lines: Vec<Line> = Vec::new();
         let content_width = inner_area.width.saturating_sub(2) as usize;
         let is_running = self.state.is_running();
 
-        all_lines.push(Line::from(""));
+        // Always show the banner at the top
+        all_lines.extend(build_banner_lines(self.state, t));
 
         for msg in self.state.messages.iter() {
             let msg_lines = Self::format_message(msg, content_width, t);
@@ -386,117 +408,74 @@ impl Widget for MessageListWidget<'_> {
     }
 }
 
-/// Render the Rho splash screen
-fn render_splash(area: Rect, buf: &mut Buffer, state: &AppState) {
-    let t = &state.theme;
+/// Build the banner lines (logo + info on the right)
+fn build_banner_lines<'a>(state: &AppState, t: &Theme) -> Vec<Line<'a>> {
     let mut lines: Vec<Line> = Vec::new();
 
-    let banner_width = RHO_BANNER.iter().map(|s| s.len()).max().unwrap_or(60);
-    let box_width = banner_width + 4;
+    let banner_width = RHO_BANNER
+        .iter()
+        .map(|s| s.chars().count())
+        .max()
+        .unwrap_or(20);
+
+    // Right-side info lines — each is a Vec<Span> to preserve styling
+    let bullet = Span::styled("• ", Style::default().fg(t.muted));
+    let info_lines: Vec<Vec<Span>> = vec![
+        vec![
+            bullet.clone(),
+            Span::styled(
+                "Rho CLI ",
+                Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(format!("v{}", VERSION), Style::default().fg(t.muted)),
+        ],
+        vec![
+            bullet.clone(),
+            Span::styled("wkr: ", Style::default().fg(t.muted)),
+            Span::styled(
+                super::path_utils::truncate_path(&state.workspace_path),
+                Style::default().fg(t.foreground),
+            ),
+        ],
+        vec![
+            bullet,
+            Span::styled("Type ", Style::default().fg(t.muted)),
+            Span::styled("/help", Style::default().fg(t.primary)),
+            Span::styled(" for commands", Style::default().fg(t.muted)),
+        ],
+        vec![],
+        vec![Span::styled(
+            "Time to build something awesome",
+            Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
+        )],
+    ];
+
+    // Start info from the top of the banner
+    let info_start = 0;
 
     lines.push(Line::from(""));
-    lines.push(Line::from(vec![Span::styled(
-        format!("    ╭{}╮", "─".repeat(box_width)),
-        Style::default().fg(t.primary),
-    )]));
 
-    lines.push(Line::from(vec![
-        Span::styled("    │", Style::default().fg(t.primary)),
-        Span::raw(" ".repeat(box_width)),
-        Span::styled("│", Style::default().fg(t.primary)),
-    ]));
+    for (i, banner_line) in RHO_BANNER.iter().enumerate() {
+        let padding = banner_width.saturating_sub(banner_line.chars().count());
+        let mut spans = vec![
+            Span::styled("    ", Style::default()),
+            Span::styled((*banner_line).to_string(), Style::default().fg(t.primary)),
+            Span::raw(" ".repeat(padding)),
+            Span::styled("  │  ", Style::default().fg(t.muted)),
+        ];
 
-    for banner_line in RHO_BANNER.iter() {
-        let padding = box_width.saturating_sub(banner_line.len());
-        lines.push(Line::from(vec![
-            Span::styled("    │", Style::default().fg(t.primary)),
-            Span::styled(format!(" {}", banner_line), Style::default().fg(t.primary)),
-            Span::raw(" ".repeat(padding.saturating_sub(1))),
-            Span::styled("│", Style::default().fg(t.primary)),
-        ]));
+        // Add styled info on the right side
+        let info_idx = i.checked_sub(info_start);
+        if let Some(idx) = info_idx {
+            if let Some(info_spans) = info_lines.get(idx) {
+                spans.extend(info_spans.iter().cloned());
+            }
+        }
+
+        lines.push(Line::from(spans));
     }
 
-    let version_text = format!("Rho v{}", VERSION);
-    let version_padding = box_width.saturating_sub(version_text.len() + 2);
-    lines.push(Line::from(vec![
-        Span::styled("    │", Style::default().fg(t.primary)),
-        Span::styled(format!(" {}", version_text), Style::default().fg(t.muted)),
-        Span::raw(" ".repeat(version_padding + 1)),
-        Span::styled("│", Style::default().fg(t.primary)),
-    ]));
-
-    lines.push(Line::from(vec![
-        Span::styled("    │", Style::default().fg(t.primary)),
-        Span::raw(" ".repeat(box_width)),
-        Span::styled("│", Style::default().fg(t.primary)),
-    ]));
-
-    lines.push(Line::from(vec![Span::styled(
-        format!("    ╰{}╯", "─".repeat(box_width)),
-        Style::default().fg(t.primary),
-    )]));
-
-    lines.push(Line::from(""));
-
-    lines.push(Line::from(vec![
-        Span::styled("    ", Style::default()),
-        Span::styled("Workspace: ", Style::default().fg(t.muted)),
-        Span::styled(
-            truncate_path(&state.workspace_path, 50),
-            Style::default().fg(t.foreground),
-        ),
-    ]));
-
-    lines.push(Line::from(""));
-
-    lines.push(Line::from(vec![Span::styled(
-        "    Tips:",
-        Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
-    )]));
-    lines.push(Line::from(vec![
-        Span::styled("      • ", Style::default().fg(t.muted)),
-        Span::styled(
-            "Ask questions, edit files, or run commands",
-            Style::default().fg(t.foreground),
-        ),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("      • ", Style::default().fg(t.muted)),
-        Span::styled("Use ", Style::default().fg(t.foreground)),
-        Span::styled("@", Style::default().fg(t.primary)),
-        Span::styled(" to reference files", Style::default().fg(t.foreground)),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("      • ", Style::default().fg(t.muted)),
-        Span::styled("Type ", Style::default().fg(t.foreground)),
-        Span::styled("/help", Style::default().fg(t.primary)),
-        Span::styled(" for available commands", Style::default().fg(t.foreground)),
-    ]));
-    lines.push(Line::from(vec![
-        Span::styled("      • ", Style::default().fg(t.muted)),
-        Span::styled("Press ", Style::default().fg(t.foreground)),
-        Span::styled("Ctrl+Q", Style::default().fg(t.primary)),
-        Span::styled(" to quit", Style::default().fg(t.foreground)),
-    ]));
-
     lines.push(Line::from(""));
     lines.push(Line::from(""));
-    lines.push(Line::from(vec![Span::styled(
-        "    What do you want to build?",
-        Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
-    )]));
-
-    let paragraph = Paragraph::new(lines);
-    paragraph.render(area, buf);
-}
-
-/// Truncate path keeping the end visible
-fn truncate_path(path: &str, max_len: usize) -> String {
-    if path.len() <= max_len {
-        path.to_string()
-    } else if max_len < 4 {
-        "...".to_string()
-    } else {
-        format!("...{}", &path[path.len().saturating_sub(max_len - 3)..])
-    }
+    lines
 }

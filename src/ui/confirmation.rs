@@ -9,9 +9,9 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Widget},
 };
 
+use crate::config::theme::Theme;
 use crate::events::SecurityRisk;
 use crate::state::{AppState, PendingAction};
-use crate::ui::theme::Theme;
 
 /// Confirmation options
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

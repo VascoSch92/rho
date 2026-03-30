@@ -8,13 +8,10 @@ use ratatui::{
 use super::{
     command_menu::CommandMenuWidget,
     confirmation::{ConfirmationPanel, ExitConfirmationModal},
-    help_modal::{HelpModal, PolicyModal},
     input::{input_height, InputWidget},
     messages::MessageListWidget,
-    settings_modal::SettingsModal,
-    startup_modal::StartupModal,
+    modals::{HelpModal, PolicyModal, SettingsModal, StartupModal, TokenUsageModal},
     status::{BottomStatusBar, NotificationWidget, TopStatusBar},
-    token_modal::TokenUsageModal,
 };
 use crate::state::AppState;
 

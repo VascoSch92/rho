@@ -52,10 +52,7 @@ impl EventStream {
             while let Some(msg_result) = read.next().await {
                 match msg_result {
                     Ok(Message::Text(text)) => {
-                        debug!(
-                            "Received WebSocket message: {}",
-                            &text[..text.len().min(200)]
-                        );
+                        debug!("Received WebSocket message: {}", &text);
                         let mut event = match serde_json::from_str::<Event>(&text) {
                             Ok(event) => event,
                             Err(e) => {

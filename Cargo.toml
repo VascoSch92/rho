@@ -51,6 +51,7 @@ unicode-width = "0.2"
 
 # Textwrap for wrapping long lines
 textwrap = "0.16"
+cargo-watch = "8.5.3"
 
 # Unix process management
 [target.'cfg(unix)'.dependencies]

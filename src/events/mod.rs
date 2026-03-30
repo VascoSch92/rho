@@ -69,6 +69,8 @@ pub struct ActionEvent {
     pub tool_call_id: String,
     pub tool_name: String,
     pub action: serde_json::Value,
+    #[serde(default)]
+    pub tool_call: Option<ToolCall>,
     #[serde(default, deserialize_with = "deserialize_string_or_empty")]
     pub summary: Option<String>,
     #[serde(default, deserialize_with = "deserialize_string_or_empty")]
@@ -76,6 +78,17 @@ pub struct ActionEvent {
     #[serde(default, deserialize_with = "deserialize_string_or_empty")]
     pub reasoning_content: Option<String>,
     pub security_risk: Option<SecurityRisk>,
+}
+
+/// Tool call info from the LLM
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCall {
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub arguments: Option<String>,
 }
 
 /// Observation event - result of an action

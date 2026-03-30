@@ -8,7 +8,7 @@ use ratatui::{
     text::{Line, Span},
 };
 
-use super::theme::Theme;
+use crate::config::theme::Theme;
 
 /// Render markdown text to styled Lines
 pub fn render_markdown(text: &str, width: usize, theme: &Theme) -> Vec<Line<'static>> {

@@ -143,12 +143,12 @@ impl Default for Theme {
 
 /// Rho full ASCII banner for splash screen
 pub const RHO_BANNER: &[&str] = &[
-    r"    ____  _           ",
-    r"   |  _ \| |__   ___  ",
-    r"   | |_) | '_ \ / _ \ ",
-    r"   |  _ <| | | | (_) |",
-    r"   |_| \_\_| |_|\___/ ",
-    r"                      ",
+    " ▄▄▄▄▄▄               ",
+    "█▀██▀▀▀█▄  █▄         ",
+    "  ██▄▄▄█▀  ██         ",
+    "  ██▀▀█▄   ████▄ ▄███▄",
+    "▄ ██  ██   ██ ██ ██ ██",
+    "▀██▀  ▀██▀▄██ ██▄▀███▀",
 ];
 
 /// Spinner style variants

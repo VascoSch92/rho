@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use crate::client::ExecutionStatus;
+use crate::config::theme::{SpinnerStyle, Theme};
 use crate::events::{ActionEvent, Event, SecurityRisk};
-use crate::ui::theme::{SpinnerStyle, Theme};
 
 /// Maximum number of messages to keep in history for display
 const MAX_DISPLAY_MESSAGES: usize = 1000;
@@ -65,6 +65,7 @@ pub enum MessageRole {
     System,
     Action,
     Error,
+    Terminal,
 }
 
 impl DisplayMessage {
@@ -109,11 +110,38 @@ impl DisplayMessage {
             .summary
             .clone()
             .unwrap_or_else(|| event.tool_name.clone());
+
+        // Format args as "key: value, key: value" (excluding security_risk and summary)
+        let args_display = event
+            .tool_call
+            .as_ref()
+            .and_then(|tc| tc.arguments.as_deref())
+            .and_then(|args| serde_json::from_str::<serde_json::Value>(args).ok())
+            .and_then(|val| {
+                val.as_object().map(|obj| {
+                    obj.iter()
+                        .filter(|(k, _)| *k != "security_risk" && *k != "summary")
+                        .map(|(k, v)| {
+                            let v_str = match v {
+                                serde_json::Value::String(s) => s.clone(),
+                                other => other.to_string(),
+                            };
+                            format!("{}: {}", k, v_str)
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+            })
+            .unwrap_or_default();
+
+        // Content: "args_display\nsummary" — tool_name and risk are rendered separately by UI
+        let content = format!("{}\n{}", args_display, summary);
+
         Self {
             // Store tool_call_id (not base.id) - this is what observations reference
             id: Some(event.tool_call_id.clone()),
             role: MessageRole::Action,
-            content: summary,
+            content,
             collapsed: true,
             tool_name: Some(event.tool_name.clone()),
             security_risk: event.security_risk,
@@ -127,6 +155,18 @@ impl DisplayMessage {
             role: MessageRole::Error,
             content: content.into(),
             collapsed: false,
+            tool_name: None,
+            security_risk: None,
+            accepted: false,
+        }
+    }
+
+    pub fn terminal(command: &str, output: impl Into<String>) -> Self {
+        Self {
+            id: None,
+            role: MessageRole::Terminal,
+            content: format!("$ {}\n{}", command, output.into()),
+            collapsed: true,
             tool_name: None,
             security_risk: None,
             accepted: false,
@@ -427,6 +467,7 @@ impl AppState {
 
                 if let Some(text) = msg.get_text() {
                     if let Some(ref llm_msg) = msg.llm_message {
+                        tracing::debug!("Agent message [{}]: {}", llm_msg.role, text);
                         let display_msg = match llm_msg.role.as_str() {
                             "user" => DisplayMessage::user(text),
                             "assistant" => DisplayMessage::assistant(text),
@@ -437,6 +478,12 @@ impl AppState {
                 }
             }
             Event::ActionEvent(action) => {
+                tracing::debug!(
+                    "Agent action: tool={} summary={:?} thought={:?}",
+                    action.tool_name,
+                    action.summary,
+                    action.thought
+                );
                 let msg = DisplayMessage::action(&action);
                 self.add_message(msg);
 
@@ -462,6 +509,11 @@ impl AppState {
                 }
             }
             Event::ObservationEvent(obs) => {
+                tracing::debug!(
+                    "Agent observation: tool={} result={}",
+                    obs.tool_name,
+                    obs.observation
+                );
                 // Don't add observations as separate messages - the action already shows
                 // what the tool is doing. Observations just clutter the display.
                 // Instead, mark the corresponding action as accepted (shows checkmark).
@@ -798,7 +850,7 @@ impl AppState {
 
     /// Change to a new random fun fact
     pub fn next_fun_fact(&mut self) {
-        use crate::ui::theme::FUN_FACTS;
+        use crate::config::theme::FUN_FACTS;
         // Simple rotation - could use random if desired
         self.fun_fact_index = (self.fun_fact_index + 1) % FUN_FACTS.len();
     }
@@ -817,7 +869,7 @@ impl AppState {
 
     /// Get the current fun fact
     pub fn current_fun_fact(&self) -> &'static str {
-        use crate::ui::theme::FUN_FACTS;
+        use crate::config::theme::FUN_FACTS;
         FUN_FACTS[self.fun_fact_index % FUN_FACTS.len()]
     }
 

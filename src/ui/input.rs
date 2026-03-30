@@ -28,19 +28,43 @@ impl Widget for InputWidget<'_> {
         }
 
         let t = &self.state.theme;
+        let is_terminal_mode = self.state.input_buffer.starts_with('!');
+        let border_color = if is_terminal_mode {
+            t.accent
+        } else {
+            t.primary
+        };
 
-        // Draw top yellow line
+        // Draw top line
         let top_y = area.y;
         for x in area.x..area.x + area.width {
             buf[(x, top_y)].set_char('─');
-            buf[(x, top_y)].set_fg(t.primary);
+            buf[(x, top_y)].set_fg(border_color);
         }
 
-        // Draw bottom yellow line
+        // Show "Terminal Mode" label on the right of the top line
+        if is_terminal_mode {
+            let label = " Terminal Mode ";
+            let label_x = area.x + area.width.saturating_sub(label.len() as u16 + 1);
+            for (i, ch) in label.chars().enumerate() {
+                let x = label_x + i as u16;
+                if x < area.x + area.width {
+                    buf[(x, top_y)].set_char(ch);
+                    buf[(x, top_y)].set_fg(t.accent);
+                    buf[(x, top_y)].set_style(
+                        ratatui::style::Style::default()
+                            .fg(t.accent)
+                            .add_modifier(ratatui::style::Modifier::BOLD),
+                    );
+                }
+            }
+        }
+
+        // Draw bottom line
         let bottom_y = area.y + area.height - 1;
         for x in area.x..area.x + area.width {
             buf[(x, bottom_y)].set_char('─');
-            buf[(x, bottom_y)].set_fg(t.primary);
+            buf[(x, bottom_y)].set_fg(border_color);
         }
 
         // Input area is between the lines

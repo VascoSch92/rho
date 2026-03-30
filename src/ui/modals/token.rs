@@ -5,9 +5,10 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Widget},
+    widgets::Widget,
 };
 
+use super::frame::render_modal;
 use crate::state::AppState;
 
 /// Token usage modal showing detailed metrics
@@ -16,6 +17,8 @@ pub struct TokenUsageModal<'a> {
 }
 
 impl<'a> TokenUsageModal<'a> {
+    const TITLE: &'static str = "Token Usage";
+
     pub fn new(state: &'a AppState) -> Self {
         Self { state }
     }
@@ -41,31 +44,13 @@ impl<'a> TokenUsageModal<'a> {
     }
 }
 
-#[allow(clippy::vec_init_then_push)]
 impl Widget for TokenUsageModal<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let t = &self.state.theme;
-
-        // Modal dimensions
-        let modal_width = 50.min(area.width.saturating_sub(4));
-        let modal_height = 14.min(area.height.saturating_sub(4));
-
-        // Center the modal
-        let modal_x = area.x + (area.width.saturating_sub(modal_width)) / 2;
-        let modal_y = area.y + (area.height.saturating_sub(modal_height)) / 2;
-
-        let modal_area = Rect::new(modal_x, modal_y, modal_width, modal_height);
-
-        // Clear the area behind the modal
-        Clear.render(modal_area, buf);
-
-        // Build content
         let mut lines: Vec<Line> = Vec::new();
 
-        // Empty line for padding
         lines.push(Line::from(""));
 
-        // Total tokens
         lines.push(Line::from(vec![
             Span::styled("  Total Tokens:     ", Style::default().fg(t.muted)),
             Span::styled(
@@ -76,7 +61,6 @@ impl Widget for TokenUsageModal<'_> {
 
         lines.push(Line::from(""));
 
-        // Breakdown
         lines.push(Line::from(vec![
             Span::styled("  Prompt Tokens:    ", Style::default().fg(t.muted)),
             Span::styled(
@@ -84,7 +68,6 @@ impl Widget for TokenUsageModal<'_> {
                 Style::default().fg(t.foreground),
             ),
         ]));
-
         lines.push(Line::from(vec![
             Span::styled("  Completion:       ", Style::default().fg(t.muted)),
             Span::styled(
@@ -94,17 +77,12 @@ impl Widget for TokenUsageModal<'_> {
         ]));
 
         lines.push(Line::from(""));
-
-        // Divider
-        let divider_width = (modal_width as usize).saturating_sub(6);
         lines.push(Line::from(vec![Span::styled(
-            format!("  {}", "─".repeat(divider_width)),
+            format!("  {}", "─".repeat(44)),
             Style::default().fg(t.muted),
         )]));
-
         lines.push(Line::from(""));
 
-        // Cost
         lines.push(Line::from(vec![
             Span::styled("  Total Cost:       ", Style::default().fg(t.muted)),
             Span::styled(
@@ -116,7 +94,6 @@ impl Widget for TokenUsageModal<'_> {
         lines.push(Line::from(""));
         lines.push(Line::from(""));
 
-        // Close hint
         lines.push(Line::from(vec![
             Span::styled("  Press ", Style::default().fg(t.muted)),
             Span::styled("Esc", Style::default().fg(t.primary)),
@@ -125,20 +102,6 @@ impl Widget for TokenUsageModal<'_> {
             Span::styled(" to close", Style::default().fg(t.muted)),
         ]));
 
-        // Create block with rounded corners
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(ratatui::widgets::BorderType::Rounded)
-            .border_style(Style::default().fg(t.accent))
-            .title(Span::styled(
-                " Token Usage ",
-                Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
-            ));
-
-        let inner = block.inner(modal_area);
-        block.render(modal_area, buf);
-
-        let paragraph = Paragraph::new(lines);
-        paragraph.render(inner, buf);
+        render_modal(area, buf, Self::TITLE, lines, t);
     }
 }

@@ -19,18 +19,6 @@ impl<'a> TopStatusBar<'a> {
     pub fn new(state: &'a AppState) -> Self {
         Self { state }
     }
-
-    /// Get the last directory name from a path
-    fn last_dir(path: &str) -> String {
-        let path = path.trim_end_matches('/');
-        if let Some(pos) = path.rfind('/') {
-            format!("/{}", &path[pos + 1..])
-        } else if path.is_empty() {
-            "/".to_string()
-        } else {
-            format!("/{}", path)
-        }
-    }
 }
 
 impl Widget for TopStatusBar<'_> {
@@ -48,14 +36,14 @@ impl Widget for TopStatusBar<'_> {
 
         // "OH" in primary bold
         spans.push(Span::styled(
-            "OH",
+            "Rho",
             Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
         ));
         spans.push(Span::styled(" │ ", yellow));
 
         // Workspace: "wrk /dirname"
         spans.push(Span::styled("wrk ", Style::default().fg(t.muted)));
-        let dir_name = Self::last_dir(&self.state.workspace_path);
+        let dir_name = super::path_utils::truncate_path(&self.state.workspace_path);
         spans.push(Span::styled(dir_name, Style::default().fg(t.foreground)));
 
         spans.push(Span::styled(" │ ", yellow));

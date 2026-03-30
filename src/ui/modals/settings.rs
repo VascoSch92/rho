@@ -5,9 +5,10 @@ use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Widget},
+    widgets::Widget,
 };
 
+use super::frame::render_modal;
 use crate::state::AppState;
 
 /// Number of settings fields
@@ -19,6 +20,8 @@ pub struct SettingsModal<'a> {
 }
 
 impl<'a> SettingsModal<'a> {
+    const TITLE: &'static str = "Settings";
+
     pub fn new(state: &'a AppState) -> Self {
         Self { state }
     }
@@ -37,26 +40,10 @@ impl<'a> SettingsModal<'a> {
 impl Widget for SettingsModal<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let t = &self.state.theme;
-
-        // Modal dimensions
-        let modal_width = 65.min(area.width.saturating_sub(4));
-        let modal_height = 22.min(area.height.saturating_sub(4));
-
-        // Center the modal
-        let modal_x = area.x + (area.width.saturating_sub(modal_width)) / 2;
-        let modal_y = area.y + (area.height.saturating_sub(modal_height)) / 2;
-
-        let modal_area = Rect::new(modal_x, modal_y, modal_width, modal_height);
-
-        // Clear the area behind the modal
-        Clear.render(modal_area, buf);
-
-        // Build content
         let mut lines: Vec<Line> = Vec::new();
         let selected = self.state.settings_field;
         let editing = self.state.settings_editing;
 
-        // Empty line for padding
         lines.push(Line::from(""));
 
         // Provider field (0)
@@ -122,7 +109,6 @@ impl Widget for SettingsModal<'_> {
             Style::default().fg(t.muted)
         };
         let key_display = if is_selected && editing {
-            // Show edit buffer with cursor
             format!("{}_", &self.state.settings_edit_buffer)
         } else {
             Self::mask_api_key(&self.state.llm_api_key)
@@ -177,17 +163,12 @@ impl Widget for SettingsModal<'_> {
         ]));
 
         lines.push(Line::from(""));
-
-        // Divider
-        let divider_width = (modal_width as usize).saturating_sub(6);
         lines.push(Line::from(vec![Span::styled(
-            format!("   {}", "─".repeat(divider_width - 3)),
+            format!("   {}", "─".repeat(56)),
             Style::default().fg(t.muted),
         )]));
-
         lines.push(Line::from(""));
 
-        // Available models hint
         lines.push(Line::from(vec![
             Span::styled("   Models for ", Style::default().fg(t.muted)),
             Span::styled(
@@ -216,7 +197,6 @@ impl Widget for SettingsModal<'_> {
 
         lines.push(Line::from(""));
 
-        // Controls hint
         lines.push(Line::from(vec![
             Span::styled("   ↑/↓", Style::default().fg(t.primary)),
             Span::styled(" navigate  ", Style::default().fg(t.muted)),
@@ -228,20 +208,6 @@ impl Widget for SettingsModal<'_> {
             Span::styled(" close", Style::default().fg(t.muted)),
         ]));
 
-        // Create block with rounded corners
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(ratatui::widgets::BorderType::Rounded)
-            .border_style(Style::default().fg(t.accent))
-            .title(Span::styled(
-                " Settings ",
-                Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
-            ));
-
-        let inner = block.inner(modal_area);
-        block.render(modal_area, buf);
-
-        let paragraph = Paragraph::new(lines);
-        paragraph.render(inner, buf);
+        render_modal(area, buf, Self::TITLE, lines, t);
     }
 }
