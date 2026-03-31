@@ -121,6 +121,9 @@ fn start_agent_server(server_url: &str, rho_dir: &std::path::Path) -> Option<Chi
         &host,
     ])
     .current_dir(rho_dir)
+    .env("OH_CONVERSATIONS_PATH", "conversations")
+    .env("OH_BASH_EVENTS_DIR", "bash_events")
+    .env("OPENHANDS_SUPPRESS_BANNER", "1")
     .stdout(std::process::Stdio::null())
     .stderr(std::process::Stdio::null());
 
