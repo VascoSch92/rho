@@ -1,15 +1,42 @@
 //! Command-line argument parsing.
 
+use clap::builder::styling::{AnsiColor, Effects, Styles};
 use clap::Parser;
 use uuid::Uuid;
 
 use crate::state::LlmProvider;
 
+const STYLES: Styles = Styles::styled()
+    .header(AnsiColor::Yellow.on_default().effects(Effects::BOLD))
+    .usage(AnsiColor::Yellow.on_default().effects(Effects::BOLD))
+    .literal(AnsiColor::Cyan.on_default().effects(Effects::BOLD))
+    .placeholder(AnsiColor::Green.on_default())
+    .valid(AnsiColor::Green.on_default())
+    .invalid(AnsiColor::Red.on_default().effects(Effects::BOLD))
+    .error(AnsiColor::Red.on_default().effects(Effects::BOLD));
+
+const HELP_TEMPLATE: &str = "\
+{before-help}\
+\x1b[1;33m ▄▄▄▄▄▄\x1b[0m
+\x1b[1;33m█▀██▀▀▀█▄  █▄\x1b[0m
+\x1b[1;33m  ██▄▄▄█▀  ██\x1b[0m\x1b[0m v{version}
+\x1b[1;33m  ██▀▀█▄   ████▄ ▄███▄\x1b[0m
+\x1b[1;33m▄ ██  ██   ██ ██ ██ ██\x1b[0m
+\x1b[1;33m▀██▀  ▀██▀▄██ ██▄▀███▀\x1b[0m
+
+{about}
+
+{usage-heading} {usage}
+
+{all-args}{after-help}";
+
 /// Rho - AI-powered coding assistant
 #[derive(Parser, Debug)]
 #[command(name = "rho")]
 #[command(version)]
-#[command(about = "Rho - Terminal UI for OpenHands Agent Server", long_about = None)]
+#[command(about = "Terminal UI for OpenHands Agent Server")]
+#[command(styles = STYLES)]
+#[command(help_template = HELP_TEMPLATE)]
 pub struct Args {
     /// Agent Server URL
     #[arg(short, long, default_value = "http://127.0.0.1:8000")]
@@ -56,9 +83,9 @@ pub struct Args {
     #[arg(long)]
     pub debug: bool,
 
-    /// Color theme (rho, dracula, catppuccin, tokyonight, solarized, gruvbox)
-    #[arg(long, env = "RHO_THEME", default_value = "rho")]
-    pub theme: String,
+    /// Color theme
+    #[arg(long, env = "RHO_THEME", value_enum, default_value_t = crate::config::theme::ThemeName::Rho)]
+    pub theme: crate::config::theme::ThemeName,
 }
 
 /// Parse model argument in format "provider/model" or just "model"

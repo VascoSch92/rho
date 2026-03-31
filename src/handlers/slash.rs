@@ -1,7 +1,7 @@
 //! Slash command handling (/help, /new, /settings, etc.)
 
 use super::AppCommand;
-use crate::config::theme::Theme;
+use crate::config::theme::ThemeName;
 use crate::state::{AppState, ConfirmationPolicy, DisplayMessage, Notification};
 
 /// Handle slash commands
@@ -26,18 +26,34 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
         Some("pause") => Some(AppCommand::Pause),
         Some("theme") => {
             if let Some(name) = parts.get(1) {
-                state.theme = Theme::by_name(name);
-                state.theme_name = name.to_lowercase();
-                state.notify(Notification::info(
-                    "Theme Changed",
-                    format!("Switched to {} theme", name),
-                ));
+                match name.parse::<ThemeName>() {
+                    Ok(theme_name) => {
+                        state.theme = theme_name.to_theme();
+                        state.theme_name = theme_name;
+                        state.notify(Notification::info(
+                            "Theme Changed",
+                            format!("Switched to {} theme", theme_name),
+                        ));
+                    }
+                    Err(_) => {
+                        let available: Vec<String> =
+                            ThemeName::all().iter().map(|t| t.to_string()).collect();
+                        state.add_message(DisplayMessage::error(format!(
+                            "Unknown theme: {}. Available: {}",
+                            name,
+                            available.join(", "),
+                        )));
+                    }
+                }
             } else {
-                let available = Theme::available().join(", ");
-                state.add_message(DisplayMessage::system(format!(
-                    "Current theme: {}. Available: {}",
-                    state.theme_name, available,
-                )));
+                // Open theme picker modal, save current for revert on Esc
+                let themes = ThemeName::all();
+                state.theme_selected = themes
+                    .iter()
+                    .position(|t| *t == state.theme_name)
+                    .unwrap_or(0);
+                state.theme_before_preview = Some(state.theme_name);
+                state.show_theme_modal = true;
             }
             None
         }

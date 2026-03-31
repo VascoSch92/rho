@@ -15,5 +15,5 @@ Thumbs.db
 .venv/
 
 # Log files and conversation history
-workspace
+.rho/
 *.log

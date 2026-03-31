@@ -4,6 +4,71 @@
 
 use ratatui::style::Color;
 
+/// Available theme names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub enum ThemeName {
+    #[default]
+    Rho,
+    Dracula,
+    Catppuccin,
+    Tokyonight,
+    Solarized,
+    Gruvbox,
+}
+
+impl std::fmt::Display for ThemeName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ThemeName::Rho => write!(f, "rho"),
+            ThemeName::Dracula => write!(f, "dracula"),
+            ThemeName::Catppuccin => write!(f, "catppuccin"),
+            ThemeName::Tokyonight => write!(f, "tokyonight"),
+            ThemeName::Solarized => write!(f, "solarized"),
+            ThemeName::Gruvbox => write!(f, "gruvbox"),
+        }
+    }
+}
+
+impl std::str::FromStr for ThemeName {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "rho" => Ok(ThemeName::Rho),
+            "dracula" => Ok(ThemeName::Dracula),
+            "catppuccin" | "catppuccin-mocha" => Ok(ThemeName::Catppuccin),
+            "tokyonight" | "tokyo-night" | "tokyo" => Ok(ThemeName::Tokyonight),
+            "solarized" | "solarized-dark" => Ok(ThemeName::Solarized),
+            "gruvbox" | "gruvbox-dark" => Ok(ThemeName::Gruvbox),
+            _ => Err(format!("unknown theme: {}", s)),
+        }
+    }
+}
+
+impl ThemeName {
+    pub fn all() -> &'static [ThemeName] {
+        &[
+            ThemeName::Rho,
+            ThemeName::Dracula,
+            ThemeName::Catppuccin,
+            ThemeName::Tokyonight,
+            ThemeName::Solarized,
+            ThemeName::Gruvbox,
+        ]
+    }
+
+    pub fn to_theme(self) -> Theme {
+        match self {
+            ThemeName::Rho => Theme::rho(),
+            ThemeName::Dracula => Theme::dracula(),
+            ThemeName::Catppuccin => Theme::catppuccin(),
+            ThemeName::Tokyonight => Theme::tokyonight(),
+            ThemeName::Solarized => Theme::solarized(),
+            ThemeName::Gruvbox => Theme::gruvbox(),
+        }
+    }
+}
+
 /// A complete color theme for the TUI.
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {
@@ -26,30 +91,6 @@ pub struct Theme {
 }
 
 impl Theme {
-    /// List all available theme names.
-    pub fn available() -> &'static [&'static str] {
-        &[
-            "rho",
-            "dracula",
-            "catppuccin",
-            "tokyonight",
-            "solarized",
-            "gruvbox",
-        ]
-    }
-
-    /// Get a theme by name (case-insensitive). Returns default if unknown.
-    pub fn by_name(name: &str) -> Self {
-        match name.to_lowercase().as_str() {
-            "dracula" => Self::dracula(),
-            "catppuccin" | "catppuccin-mocha" => Self::catppuccin(),
-            "tokyonight" | "tokyo-night" | "tokyo" => Self::tokyonight(),
-            "solarized" | "solarized-dark" => Self::solarized(),
-            "gruvbox" | "gruvbox-dark" => Self::gruvbox(),
-            _ => Self::default(),
-        }
-    }
-
     /// Default Rho theme (yellow accent on dark terminal).
     pub fn rho() -> Self {
         Self {
@@ -141,15 +182,17 @@ impl Default for Theme {
     }
 }
 
-/// Rho full ASCII banner for splash screen
-pub const RHO_BANNER: &[&str] = &[
-    " ▄▄▄▄▄▄               ",
-    "█▀██▀▀▀█▄  █▄         ",
-    "  ██▄▄▄█▀  ██         ",
-    "  ██▀▀█▄   ████▄ ▄███▄",
-    "▄ ██  ██   ██ ██ ██ ██",
-    "▀██▀  ▀██▀▄██ ██▄▀███▀",
-];
+/// Build the Rho ASCII banner with the version embedded above the "o".
+pub fn rho_banner(version: &str) -> Vec<String> {
+    vec![
+        " ▄▄▄▄▄▄".to_string(),
+        "█▀██▀▀▀█▄  █▄".to_string(),
+        format!("  ██▄▄▄█▀  ██  v{}", version),
+        "  ██▀▀█▄   ████▄ ▄███▄".to_string(),
+        "▄ ██  ██   ██ ██ ██ ██".to_string(),
+        "▀██▀  ▀██▀▄██ ██▄▀███▀".to_string(),
+    ]
+}
 
 /// Spinner style variants
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -185,33 +228,83 @@ impl SpinnerStyle {
     }
 }
 
-/// Fun facts and dev jokes to display while waiting
+/// Thinking status messages — open-source and dev themed
 pub const FUN_FACTS: &[&str] = &[
-    // Dev jokes
-    "Why do programmers prefer dark mode? Because light attracts bugs 🐛",
-    "There are only 10 types of people: those who understand binary...",
-    "It works on my machine! 🤷",
-    "// TODO: write a better TODO",
-    "99 little bugs in the code... patch one down, 127 bugs around 🐜",
-    "A SQL query walks into a bar, walks up to two tables and asks: 'Can I join you?'",
-    "!false — It's funny because it's true",
-    "Programming is 10% writing code and 90% figuring out why it doesn't work",
-    "The best thing about a boolean is even if you're wrong, you're only off by a bit",
-    "Debugging: Being the detective in a crime movie where you're also the murderer 🔍",
-    "I don't always test my code, but when I do, I do it in production 🚀",
-    "git commit -m 'I have no idea what I just did'",
-    "Semicolons: The difference between 'Hello World' and 'Hello; World'",
-    "In theory, theory and practice are the same. In practice, they're not.",
-    "Talk is cheap. Show me the code. — Linus Torvalds",
-    // Rho facts
-    "Rho (ρ) is the 17th letter of the Greek alphabet 🔤",
-    "This TUI is built with Ratatui 🐀 + Rust 🦀",
-    "Rho connects to the OpenHands Agent Server 🔧",
-    "Did you know? The agent can browse the web for you 🌐",
-    "Pro tip: Use /policy to control agent autonomy 🎮",
-    "Fun fact: This Rust TUI connects to a Python backend 🦀🐍",
-    // Motivational
-    "Sit back, relax, code is being written ✨",
-    "Pair programming with AI: the future is now 🤖",
-    "You're doing great! Let the AI handle the boring stuff 💪",
+    "Compiling ideas...",
+    "Rebasing thoughts...",
+    "Resolving merge conflicts in my brain...",
+    "git blame: it was me all along",
+    "Consulting the man pages...",
+    "Parsing your intent...",
+    "Running cargo build on a solution...",
+    "Crafting artisanal bytes...",
+    "Grepping the knowledge base...",
+    "Forking a new thought process...",
+    "Traversing the AST of possibilities...",
+    "Borrowing ideas (don't worry, I'll return them)...",
+    "Unwrapping Options...",
+    "Pattern matching on your request...",
+    "Spawning a background task...",
+    "Allocating brain cycles...",
+    "Piping stdout to my response buffer...",
+    "chmod +x solution.sh...",
+    "Reading the source, Luke...",
+    "Talk is cheap. Generating the code.",
+    "sudo think harder...",
+    "Opening a PR against my own assumptions...",
+    "Diffing reality vs expectations...",
+    "Built with Ratatui + Rust + OpenHands...",
+    "Free as in freedom, smart as in AI...",
+    "Upstream looks good, merging thoughts...",
+    "LGTM — Let's Go Think More...",
+    "This commit will fix everything (famous last words)...",
 ];
+
+/// Build styled spans for the thinking message with a 3-letter accent window that sweeps across.
+/// The window moves one position per tick, cycling through the text.
+pub fn animated_thinking_spans(
+    text: &str,
+    tick: usize,
+    theme: &Theme,
+) -> Vec<ratatui::text::Span<'static>> {
+    let chars: Vec<char> = text.chars().collect();
+    let len = chars.len();
+    if len == 0 {
+        return vec![];
+    }
+
+    let window_pos = tick % (len + 3); // sweep past the end before restarting
+    let window_size = 3;
+
+    let mut spans = Vec::new();
+    let mut i = 0;
+
+    while i < len {
+        let in_window = i >= window_pos.saturating_sub(0)
+            && i < window_pos + window_size
+            && (i as isize) >= (window_pos as isize);
+
+        // Collect consecutive chars with the same style
+        let start = i;
+        while i < len {
+            let this_in_window = i >= window_pos && i < window_pos + window_size;
+            if this_in_window != in_window {
+                break;
+            }
+            i += 1;
+        }
+
+        let chunk: String = chars[start..i].iter().collect();
+        let color = if in_window {
+            theme.accent
+        } else {
+            theme.primary
+        };
+        spans.push(ratatui::text::Span::styled(
+            chunk,
+            ratatui::style::Style::default().fg(color),
+        ));
+    }
+
+    spans
+}

@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use crate::client::ExecutionStatus;
-use crate::config::theme::{SpinnerStyle, Theme};
+use crate::config::theme::{SpinnerStyle, Theme, ThemeName};
 use crate::events::{ActionEvent, Event, SecurityRisk};
 
 /// Maximum number of messages to keep in history for display
@@ -385,7 +385,10 @@ pub struct AppState {
 
     // Theme
     pub theme: Theme,
-    pub theme_name: String,
+    pub theme_name: ThemeName,
+    pub show_theme_modal: bool,
+    pub theme_selected: usize,
+    pub theme_before_preview: Option<ThemeName>,
 }
 
 impl Default for AppState {
@@ -440,7 +443,10 @@ impl Default for AppState {
             server_starting: false,
             server_starting_tick: 0,
             theme: Theme::default(),
-            theme_name: "rho".to_string(),
+            theme_name: ThemeName::Rho,
+            show_theme_modal: false,
+            theme_selected: 0,
+            theme_before_preview: None,
         }
     }
 }

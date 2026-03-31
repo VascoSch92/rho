@@ -1,14 +1,14 @@
-//! Confirmation panel widget with Rho theme.
-//! Design matches the Token Usage modal.
+//! Confirmation panel for pending agent actions.
 
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Widget},
+    widgets::Widget,
 };
 
+use super::frame::render_modal;
 use crate::config::theme::Theme;
 use crate::events::SecurityRisk;
 use crate::state::{AppState, PendingAction};
@@ -45,6 +45,8 @@ pub struct ConfirmationPanel<'a> {
 }
 
 impl<'a> ConfirmationPanel<'a> {
+    const TITLE: &'static str = "Confirm Action";
+
     pub fn new(state: &'a AppState) -> Self {
         Self { state }
     }
@@ -79,27 +81,10 @@ impl Widget for ConfirmationPanel<'_> {
         }
 
         let t = &self.state.theme;
-
-        // Modal dimensions (same as token modal)
-        let modal_width = 55.min(area.width.saturating_sub(4));
-        let modal_height = 14.min(area.height.saturating_sub(4));
-
-        // Center the modal
-        let modal_x = area.x + (area.width.saturating_sub(modal_width)) / 2;
-        let modal_y = area.y + (area.height.saturating_sub(modal_height)) / 2;
-
-        let modal_area = Rect::new(modal_x, modal_y, modal_width, modal_height);
-
-        // Clear the area behind the modal
-        Clear.render(modal_area, buf);
-
-        // Build content
         let mut lines: Vec<Line> = Vec::new();
 
-        // Empty line for padding
         lines.push(Line::from(""));
 
-        // Header text
         lines.push(Line::from(vec![Span::styled(
             "  Action requiring confirmation:",
             Style::default().fg(t.muted),
@@ -107,10 +92,8 @@ impl Widget for ConfirmationPanel<'_> {
 
         lines.push(Line::from(""));
 
-        // Actions (show first one, or multiple)
         for action in self.state.pending_actions.iter().take(3) {
             lines.push(Self::format_action_line(action, t));
-            // Summary on next line
             lines.push(Line::from(vec![
                 Span::styled("    ", Style::default()),
                 Span::styled(
@@ -128,14 +111,10 @@ impl Widget for ConfirmationPanel<'_> {
         }
 
         lines.push(Line::from(""));
-
-        // Divider
-        let divider_width = (modal_width as usize).saturating_sub(6);
         lines.push(Line::from(vec![Span::styled(
-            format!("  {}", "─".repeat(divider_width)),
+            format!("  {}", "─".repeat(49)),
             Style::default().fg(t.muted),
         )]));
-
         lines.push(Line::from(""));
 
         // Options with selection indicator
@@ -173,7 +152,6 @@ impl Widget for ConfirmationPanel<'_> {
 
         lines.push(Line::from(""));
 
-        // Close hint (same style as token modal)
         lines.push(Line::from(vec![
             Span::styled("  Press ", Style::default().fg(t.muted)),
             Span::styled("← →", Style::default().fg(t.primary)),
@@ -182,86 +160,6 @@ impl Widget for ConfirmationPanel<'_> {
             Span::styled(" to confirm", Style::default().fg(t.muted)),
         ]));
 
-        // Create block with rounded corners (same as token modal)
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(ratatui::widgets::BorderType::Rounded)
-            .border_style(Style::default().fg(t.accent))
-            .title(Span::styled(
-                " Confirm Action ",
-                Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
-            ));
-
-        let inner = block.inner(modal_area);
-        block.render(modal_area, buf);
-
-        let paragraph = Paragraph::new(lines);
-        paragraph.render(inner, buf);
-    }
-}
-
-/// Exit confirmation modal (same design as token modal)
-pub struct ExitConfirmationModal<'a> {
-    pub show: bool,
-    pub state: &'a AppState,
-}
-
-impl Widget for ExitConfirmationModal<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        if !self.show {
-            return;
-        }
-
-        let t = &self.state.theme;
-
-        let modal_width = 45;
-        let modal_height = 9;
-
-        let modal_x = (area.width.saturating_sub(modal_width)) / 2;
-        let modal_y = (area.height.saturating_sub(modal_height)) / 2;
-
-        let modal_area = Rect::new(modal_x, modal_y, modal_width, modal_height);
-
-        Clear.render(modal_area, buf);
-
-        // Build content
-        let text = vec![
-            Line::from(""),
-            Line::from(Span::styled(
-                "  Are you sure you want to exit?",
-                Style::default().fg(t.foreground),
-            )),
-            Line::from(""),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("  Press ", Style::default().fg(t.muted)),
-                Span::styled(
-                    "Y",
-                    Style::default().fg(t.error).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" to exit, ", Style::default().fg(t.muted)),
-                Span::styled(
-                    "N",
-                    Style::default().fg(t.success).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" to stay", Style::default().fg(t.muted)),
-            ]),
-        ];
-
-        // Create block with rounded corners (same as token modal)
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(ratatui::widgets::BorderType::Rounded)
-            .border_style(Style::default().fg(t.accent))
-            .title(Span::styled(
-                " Exit ",
-                Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
-            ));
-
-        let inner = block.inner(modal_area);
-        block.render(modal_area, buf);
-
-        let paragraph = Paragraph::new(text);
-        paragraph.render(inner, buf);
+        render_modal(area, buf, Self::TITLE, lines, t);
     }
 }

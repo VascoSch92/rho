@@ -7,10 +7,12 @@ use ratatui::{
 
 use super::{
     command_menu::CommandMenuWidget,
-    confirmation::{ConfirmationPanel, ExitConfirmationModal},
     input::{input_height, InputWidget},
     messages::MessageListWidget,
-    modals::{HelpModal, PolicyModal, SettingsModal, StartupModal, TokenUsageModal},
+    modals::{
+        ConfirmationPanel, ExitConfirmationModal, HelpModal, PolicyModal, SettingsModal,
+        StartupModal, ThemeModal, TokenUsageModal,
+    },
     status::{BottomStatusBar, NotificationWidget, TopStatusBar},
 };
 use crate::state::AppState;
@@ -71,6 +73,11 @@ pub fn render(frame: &mut Frame, state: &AppState) {
     // Settings modal
     if state.show_settings_modal {
         frame.render_widget(SettingsModal::new(state), area);
+    }
+
+    // Theme modal
+    if state.show_theme_modal {
+        frame.render_widget(ThemeModal::new(state), area);
     }
 
     // Startup modal (server initializing)

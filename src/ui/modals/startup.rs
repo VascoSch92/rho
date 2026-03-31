@@ -34,7 +34,7 @@ impl Widget for StartupModal<'_> {
             Line::from(""),
             Line::from(vec![
                 Span::styled(
-                    "  Preparing everything",
+                    "  Waking up the coding agent",
                     Style::default()
                         .fg(t.foreground)
                         .add_modifier(Modifier::BOLD),
@@ -43,7 +43,7 @@ impl Widget for StartupModal<'_> {
             ]),
             Line::from(""),
             Line::from(vec![Span::styled(
-                "  Starting Agent Server",
+                "  Agent needs coffee first...",
                 Style::default().fg(t.muted),
             )]),
             Line::from(""),

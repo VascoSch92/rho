@@ -9,7 +9,7 @@ use ratatui::{
 };
 use textwrap::wrap;
 
-use crate::config::theme::{Theme, RHO_BANNER};
+use crate::config::theme::{rho_banner, Theme};
 use crate::events::SecurityRisk;
 use crate::state::{AppState, DisplayMessage, MessageRole, VERSION};
 use crate::ui::markdown::render_markdown;
@@ -355,21 +355,17 @@ impl Widget for MessageListWidget<'_> {
         if is_running {
             let spinner = self.state.spinner_frame();
             let fun_fact = self.state.current_fun_fact();
+            let tick = self.state.spinner_tick;
 
-            all_lines.push(Line::from(vec![
-                Span::styled(
-                    format!("  {}  ", spinner),
-                    Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled("Thinking...", Style::default().fg(t.primary)),
-            ]));
-            all_lines.push(Line::from(vec![
-                Span::styled("     ", Style::default()),
-                Span::styled(
-                    fun_fact.to_string(),
-                    Style::default().fg(t.muted).add_modifier(Modifier::ITALIC),
-                ),
-            ]));
+            let mut spans = vec![Span::styled(
+                format!("  {}  ", spinner),
+                Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
+            )];
+            spans.extend(crate::config::theme::animated_thinking_spans(
+                fun_fact, tick, t,
+            ));
+
+            all_lines.push(Line::from(spans));
             all_lines.push(Line::from(""));
         }
 
@@ -395,23 +391,12 @@ impl Widget for MessageListWidget<'_> {
 fn build_banner_lines<'a>(state: &AppState, t: &Theme) -> Vec<Line<'a>> {
     let mut lines: Vec<Line> = Vec::new();
 
-    let banner_width = RHO_BANNER
-        .iter()
-        .map(|s| s.chars().count())
-        .max()
-        .unwrap_or(20);
+    let banner = rho_banner(VERSION);
+    let banner_width = banner.iter().map(|s| s.chars().count()).max().unwrap_or(20);
 
     // Right-side info lines — each is a Vec<Span> to preserve styling
     let bullet = Span::styled("• ", Style::default().fg(t.muted));
     let info_lines: Vec<Vec<Span>> = vec![
-        vec![
-            bullet.clone(),
-            Span::styled(
-                "Rho CLI ",
-                Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(format!("v{}", VERSION), Style::default().fg(t.muted)),
-        ],
         vec![
             bullet.clone(),
             Span::styled("wkr: ", Style::default().fg(t.muted)),
@@ -433,26 +418,37 @@ fn build_banner_lines<'a>(state: &AppState, t: &Theme) -> Vec<Line<'a>> {
         )],
     ];
 
-    // Start info from the top of the banner
-    let info_start = 0;
-
     lines.push(Line::from(""));
 
-    for (i, banner_line) in RHO_BANNER.iter().enumerate() {
-        let padding = banner_width.saturating_sub(banner_line.chars().count());
-        let mut spans = vec![
-            Span::styled("    ", Style::default()),
-            Span::styled((*banner_line).to_string(), Style::default().fg(t.primary)),
-            Span::raw(" ".repeat(padding)),
-            Span::styled("  │  ", Style::default().fg(t.muted)),
-        ];
+    let version_suffix = format!("v{}", VERSION);
 
-        // Add styled info on the right side
-        let info_idx = i.checked_sub(info_start);
-        if let Some(idx) = info_idx {
-            if let Some(info_spans) = info_lines.get(idx) {
-                spans.extend(info_spans.iter().cloned());
-            }
+    for (i, banner_line) in banner.iter().enumerate() {
+        let padding = banner_width.saturating_sub(banner_line.chars().count());
+        let mut spans = vec![Span::styled("    ", Style::default())];
+
+        // Split off the version suffix so it can be styled differently
+        if let Some(pos) = banner_line.find(&version_suffix) {
+            let logo_part = &banner_line[..pos];
+            spans.push(Span::styled(
+                logo_part.to_string(),
+                Style::default().fg(t.primary),
+            ));
+            spans.push(Span::styled(
+                version_suffix.clone(),
+                Style::default().fg(t.muted),
+            ));
+        } else {
+            spans.push(Span::styled(
+                banner_line.clone(),
+                Style::default().fg(t.primary),
+            ));
+        }
+
+        spans.push(Span::raw(" ".repeat(padding)));
+        spans.push(Span::styled("  │  ", Style::default().fg(t.muted)));
+
+        if let Some(info_spans) = info_lines.get(i) {
+            spans.extend(info_spans.iter().cloned());
         }
 
         lines.push(Line::from(spans));

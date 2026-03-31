@@ -70,6 +70,45 @@ pub fn handle_key_event(
         }
     }
 
+    // Handle theme modal — live preview on navigate, confirm/revert on Enter/Esc
+    if state.show_theme_modal {
+        let themes = crate::config::theme::ThemeName::all();
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                // Revert to original theme
+                if let Some(original) = state.theme_before_preview.take() {
+                    state.theme = original.to_theme();
+                    state.theme_name = original;
+                }
+                state.show_theme_modal = false;
+                return None;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                state.theme_selected = state.theme_selected.saturating_sub(1);
+                // Live preview
+                let selected = themes[state.theme_selected];
+                state.theme = selected.to_theme();
+                state.theme_name = selected;
+                return None;
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                state.theme_selected = (state.theme_selected + 1).min(themes.len() - 1);
+                // Live preview
+                let selected = themes[state.theme_selected];
+                state.theme = selected.to_theme();
+                state.theme_name = selected;
+                return None;
+            }
+            KeyCode::Enter => {
+                // Confirm — keep the previewed theme
+                state.theme_before_preview = None;
+                state.show_theme_modal = false;
+                return None;
+            }
+            _ => return None,
+        }
+    }
+
     // Handle settings modal
     if state.show_settings_modal {
         return handle_settings_modal_input(state, key);

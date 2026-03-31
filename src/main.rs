@@ -29,20 +29,29 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use cli::Args;
 use client::{AgentServerClient, EventStream, ExecutionStatus, LLMConfig};
-use config::theme::Theme;
 use handlers::{handle_key_event, process_command};
 use state::{AppState, ConfirmationPolicy, DisplayMessage, Notification};
+
+/// Ensure the .rho data directory exists and return its path.
+/// The agent server creates `workspace/conversations/` inside this directory.
+fn ensure_rho_dir() -> std::path::PathBuf {
+    let rho_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".rho");
+    std::fs::create_dir_all(&rho_dir).expect("Failed to create .rho/");
+    rho_dir
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = <Args as clap::Parser>::parse();
+    let rho_dir = ensure_rho_dir();
 
     // Initialize logging - write to file when debug is enabled
     let log_level = if args.debug { "debug" } else { "warn" };
 
     if args.debug {
-        // Write logs to file so they're visible even with TUI
-        let log_file = std::fs::File::create("rho.log").expect("Failed to create log file");
+        // Write logs to .rho/rho.log so they're visible even with TUI
+        let log_path = rho_dir.join("rho.log");
+        let log_file = std::fs::File::create(&log_path).expect("Failed to create log file");
         tracing_subscriber::registry()
             .with(
                 tracing_subscriber::EnvFilter::try_from_default_env()
@@ -69,7 +78,7 @@ async fn main() -> Result<()> {
     info!("Server: {}", args.server);
 
     // Start the embedded agent server in the background
-    let mut server_process = start_agent_server(&args.server);
+    let mut server_process = start_agent_server(&args.server, &rho_dir);
 
     // Run the TUI application (it will poll for server readiness)
     let result = run_app(args, server_process.is_some()).await;
@@ -82,7 +91,7 @@ async fn main() -> Result<()> {
 
 /// Start the OpenHands agent server from the project's .venv.
 /// Returns None if the venv or the module is not available.
-fn start_agent_server(server_url: &str) -> Option<Child> {
+fn start_agent_server(server_url: &str, rho_dir: &std::path::Path) -> Option<Child> {
     let parsed = url::Url::parse(server_url).ok()?;
     let host = parsed.host_str().unwrap_or("127.0.0.1").to_string();
     let port = parsed.port().unwrap_or(8000);
@@ -111,6 +120,7 @@ fn start_agent_server(server_url: &str) -> Option<Child> {
         "--host",
         &host,
     ])
+    .current_dir(rho_dir)
     .stdout(std::process::Stdio::null())
     .stderr(std::process::Stdio::null());
 
@@ -188,8 +198,8 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
         state.confirmation_policy = ConfirmationPolicy::NeverConfirm;
     }
     state.server_starting = server_launched;
-    state.theme = Theme::by_name(&args.theme);
-    state.theme_name = args.theme.to_lowercase();
+    state.theme = args.theme.to_theme();
+    state.theme_name = args.theme;
 
     // Set workspace path for display
     let workspace_path = args
@@ -292,7 +302,10 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
                     Ok(_) => {
                         state.server_starting = false;
                         state.connected = true;
-                        state.notify(Notification::info("Connected", "Agent Server is ready"));
+                        state.notify(Notification::info(
+                            "Connected",
+                            "✨ Agent is awake and ready!",
+                        ));
                         info!("Agent server ready");
                     }
                     Err(_) => {
