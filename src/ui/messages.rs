@@ -217,6 +217,25 @@ impl<'a> MessageListWidget<'a> {
                 }
             }
             MessageRole::Action => {
+                // Show thought/reasoning above the action (italic, normal color)
+                if let Some(ref thought) = msg.thought {
+                    lines.push(Line::from(""));
+                    let content_width = width.saturating_sub(4);
+                    let wrapped = wrap(thought, content_width);
+                    for line in wrapped.iter() {
+                        lines.push(Line::from(vec![
+                            Span::styled("  ", Style::default()),
+                            Span::styled(
+                                line.to_string(),
+                                Style::default()
+                                    .fg(t.foreground)
+                                    .add_modifier(Modifier::ITALIC),
+                            ),
+                        ]));
+                    }
+                    lines.push(Line::from(""));
+                }
+
                 // Content format: "args_display\nsummary"
                 // tool_name and security_risk are in separate fields
                 let (args_line, summary_line) =
@@ -244,13 +263,15 @@ impl<'a> MessageListWidget<'a> {
                     ));
                 }
 
-                // Security risk in its own color
+                // Security risk — only show when classified (not UNKNOWN)
                 if let Some(risk) = msg.security_risk {
-                    header_spans.push(Span::raw(" "));
-                    header_spans.push(Span::styled(
-                        format!("{}", risk),
-                        Self::security_risk_style(risk, t),
-                    ));
+                    if risk != SecurityRisk::Unknown {
+                        header_spans.push(Span::raw(" "));
+                        header_spans.push(Span::styled(
+                            format!("{}", risk),
+                            Self::security_risk_style(risk, t),
+                        ));
+                    }
                 }
 
                 lines.push(Line::from(header_spans));
@@ -342,7 +363,6 @@ impl Widget for MessageListWidget<'_> {
         let t = &self.state.theme;
         let mut all_lines: Vec<Line> = Vec::new();
         let content_width = inner_area.width.saturating_sub(2) as usize;
-        let is_running = self.state.is_running();
 
         // Always show the banner at the top
         all_lines.extend(build_banner_lines(self.state, t));
@@ -352,22 +372,7 @@ impl Widget for MessageListWidget<'_> {
             all_lines.extend(msg_lines);
         }
 
-        if is_running {
-            let spinner = self.state.spinner_frame();
-            let fun_fact = self.state.current_fun_fact();
-            let tick = self.state.spinner_tick;
-
-            let mut spans = vec![Span::styled(
-                format!("  {}  ", spinner),
-                Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
-            )];
-            spans.extend(crate::config::theme::animated_thinking_spans(
-                fun_fact, tick, t,
-            ));
-
-            all_lines.push(Line::from(spans));
-            all_lines.push(Line::from(""));
-        }
+        // Spinner is rendered separately in the layout, not in the message list
 
         let visible_height = inner_area.height as usize;
         let total_lines = all_lines.len();

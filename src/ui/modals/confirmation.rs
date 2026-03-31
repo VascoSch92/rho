@@ -85,29 +85,31 @@ impl Widget for ConfirmationPanel<'_> {
 
         lines.push(Line::from(""));
 
-        lines.push(Line::from(vec![Span::styled(
-            "  Action requiring confirmation:",
-            Style::default().fg(t.muted),
-        )]));
+        let total = self.state.pending_actions.len();
+        if let Some(action) = self.state.pending_actions.first() {
+            // Show counter if multiple actions
+            if total > 1 {
+                lines.push(Line::from(vec![Span::styled(
+                    format!("  Action 1 of {} requiring confirmation:", total),
+                    Style::default().fg(t.muted),
+                )]));
+            } else {
+                lines.push(Line::from(vec![Span::styled(
+                    "  Action requiring confirmation:",
+                    Style::default().fg(t.muted),
+                )]));
+            }
 
-        lines.push(Line::from(""));
+            lines.push(Line::from(""));
 
-        for action in self.state.pending_actions.iter().take(3) {
             lines.push(Self::format_action_line(action, t));
             lines.push(Line::from(vec![
                 Span::styled("    ", Style::default()),
                 Span::styled(
-                    action.summary.chars().take(45).collect::<String>(),
+                    action.summary.chars().take(50).collect::<String>(),
                     Style::default().fg(t.foreground),
                 ),
             ]));
-        }
-
-        if self.state.pending_actions.len() > 3 {
-            lines.push(Line::from(vec![Span::styled(
-                format!("  ... and {} more", self.state.pending_actions.len() - 3),
-                Style::default().fg(t.muted),
-            )]));
         }
 
         lines.push(Line::from(""));

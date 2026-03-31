@@ -64,7 +64,7 @@ impl Widget for CommandMenuWidget<'_> {
 
         // Calculate menu size
         let menu_height = (commands.len() + 2).min(10) as u16; // +2 for border
-        let menu_width = 40.min(area.width.saturating_sub(4));
+        let menu_width = 55.min(area.width.saturating_sub(4));
 
         // Position above the input area
         let menu_x = area.x + 1;

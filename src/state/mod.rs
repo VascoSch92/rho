@@ -29,9 +29,9 @@ pub enum ConfirmationPolicy {
 impl std::fmt::Display for ConfirmationPolicy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ConfirmationPolicy::AlwaysConfirm => write!(f, "Always Confirm"),
-            ConfirmationPolicy::NeverConfirm => write!(f, "Auto-Approve"),
-            ConfirmationPolicy::ConfirmRisky => write!(f, "Confirm Risky"),
+            ConfirmationPolicy::AlwaysConfirm => write!(f, "   Always Confirm"),
+            ConfirmationPolicy::NeverConfirm => write!(f, "    Auto-Approve"),
+            ConfirmationPolicy::ConfirmRisky => write!(f, "    Confirm Risky"),
         }
     }
 }
@@ -55,7 +55,8 @@ pub struct DisplayMessage {
     pub collapsed: bool,
     pub tool_name: Option<String>,
     pub security_risk: Option<SecurityRisk>,
-    pub accepted: bool, // Whether this action was accepted (shows checkmark)
+    pub accepted: bool,
+    pub thought: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,6 +79,7 @@ impl DisplayMessage {
             tool_name: None,
             security_risk: None,
             accepted: false,
+            thought: None,
         }
     }
 
@@ -90,6 +92,7 @@ impl DisplayMessage {
             tool_name: None,
             security_risk: None,
             accepted: false,
+            thought: None,
         }
     }
 
@@ -102,6 +105,7 @@ impl DisplayMessage {
             tool_name: None,
             security_risk: None,
             accepted: false,
+            thought: None,
         }
     }
 
@@ -137,6 +141,12 @@ impl DisplayMessage {
         // Content: "args_display\nsummary" — tool_name and risk are rendered separately by UI
         let content = format!("{}\n{}", args_display, summary);
 
+        // Get thought from either thought or reasoning_content field
+        let thought = event
+            .thought
+            .clone()
+            .or_else(|| event.reasoning_content.clone());
+
         Self {
             // Store tool_call_id (not base.id) - this is what observations reference
             id: Some(event.tool_call_id.clone()),
@@ -146,6 +156,7 @@ impl DisplayMessage {
             tool_name: Some(event.tool_name.clone()),
             security_risk: event.security_risk,
             accepted: false,
+            thought,
         }
     }
 
@@ -158,6 +169,7 @@ impl DisplayMessage {
             tool_name: None,
             security_risk: None,
             accepted: false,
+            thought: None,
         }
     }
 
@@ -170,6 +182,7 @@ impl DisplayMessage {
             tool_name: None,
             security_risk: None,
             accepted: false,
+            thought: None,
         }
     }
 }
@@ -388,6 +401,9 @@ pub struct AppState {
     pub server_starting: bool,
     pub server_starting_tick: usize,
 
+    // Policy modal state
+    pub policy_selected: usize,
+
     // Theme
     pub theme: Theme,
     pub theme_name: ThemeName,
@@ -454,6 +470,7 @@ impl Default for AppState {
             server_starting_tick: 0,
             theme: Theme::default(),
             theme_name: ThemeName::Rho,
+            policy_selected: 0,
             show_theme_modal: false,
             theme_selected: 0,
             theme_before_preview: None,

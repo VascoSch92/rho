@@ -183,6 +183,14 @@ pub enum ServerConfirmationPolicy {
     ConfirmRisky,
 }
 
+/// Security analyzer discriminated union
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind")]
+pub enum SecurityAnalyzer {
+    /// LLM-based security analyzer — reads risk from the LLM's tool call arguments
+    LLMSecurityAnalyzer,
+}
+
 /// Start conversation request (matches SDK's StartConversationRequest)
 #[derive(Debug, Serialize)]
 pub struct StartConversationRequest {
@@ -194,6 +202,8 @@ pub struct StartConversationRequest {
     pub conversation_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub confirmation_policy: Option<ServerConfirmationPolicy>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub security_analyzer: Option<SecurityAnalyzer>,
 }
 
 /// Health check response - server returns plain "OK" string

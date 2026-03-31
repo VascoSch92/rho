@@ -7,9 +7,9 @@ use super::AppCommand;
 use crate::cli::Args;
 use crate::client::{
     AgentConfig, AgentServerClient, EventStream, ExecutionStatus, LLMConfig, LocalWorkspace,
-    SendMessageRequest, ServerConfirmationPolicy, StartConversationRequest,
+    SecurityAnalyzer, SendMessageRequest, ServerConfirmationPolicy, StartConversationRequest,
 };
-use crate::state::{AppState, ConfirmationPolicy, DisplayMessage, Notification};
+use crate::state::{AppState, ConfirmationPolicy, DisplayMessage, InputMode, Notification};
 
 /// Process a command and return true if should exit
 pub async fn process_command(
@@ -48,6 +48,7 @@ pub async fn process_command(
                     initial_message: Some(SendMessageRequest::user(&message).with_run()),
                     conversation_id: None,
                     confirmation_policy: Some(server_policy),
+                    security_analyzer: Some(SecurityAnalyzer::LLMSecurityAnalyzer),
                 };
 
                 match client.start_conversation(request).await {
@@ -174,16 +175,36 @@ pub async fn process_command(
         }
 
         AppCommand::ConfirmYes => {
-            // Accept: tell the server to accept the pending actions
-            if let Some(conv_id) = state.conversation_id {
-                info!("User accepted pending actions");
-                if let Err(e) = client.accept_pending_actions(conv_id).await {
-                    error!("Failed to accept actions: {}", e);
-                    state.notify(Notification::error("Accept Failed", e.to_string()));
+            // Accept current action — advance to next, or send batch accept when all reviewed
+            if !state.pending_actions.is_empty() {
+                // Mark current action as accepted in the message list
+                let current = &state.pending_actions[0];
+                for msg in state.messages.iter_mut() {
+                    if msg.role == crate::state::MessageRole::Action {
+                        if let Some(ref msg_id) = msg.id {
+                            if msg_id == &current.tool_call_id {
+                                msg.accepted = true;
+                                break;
+                            }
+                        }
+                    }
                 }
-                state.clear_pending_actions();
-                state.randomize_spinner();
-                state.execution_status = ExecutionStatus::Running;
+                state.pending_actions.remove(0);
+
+                if state.pending_actions.is_empty() {
+                    // All actions reviewed — send batch accept to server
+                    if let Some(conv_id) = state.conversation_id {
+                        info!("All actions accepted, sending batch accept");
+                        if let Err(e) = client.accept_pending_actions(conv_id).await {
+                            error!("Failed to accept actions: {}", e);
+                            state.notify(Notification::error("Accept Failed", e.to_string()));
+                        }
+                    }
+                    state.input_mode = InputMode::Normal;
+                    state.randomize_spinner();
+                    state.execution_status = ExecutionStatus::Running;
+                }
+                // Otherwise, stay in Confirmation mode — next action shown automatically
             }
         }
 

@@ -59,10 +59,28 @@ pub fn handle_key_event(
         }
     }
 
-    // Handle policy modal
+    // Handle policy modal — navigate with ↑/↓, Enter to apply, Esc to cancel
     if state.show_policy_modal {
+        let policies = [
+            crate::state::ConfirmationPolicy::AlwaysConfirm,
+            crate::state::ConfirmationPolicy::ConfirmRisky,
+            crate::state::ConfirmationPolicy::NeverConfirm,
+        ];
         match key.code {
-            KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                state.show_policy_modal = false;
+                return None;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                state.policy_selected = state.policy_selected.saturating_sub(1);
+                return None;
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                state.policy_selected = (state.policy_selected + 1).min(policies.len() - 1);
+                return None;
+            }
+            KeyCode::Enter => {
+                state.confirmation_policy = policies[state.policy_selected];
                 state.show_policy_modal = false;
                 return None;
             }

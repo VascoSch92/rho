@@ -8,8 +8,8 @@ pub mod api;
 mod websocket;
 
 pub use api::{
-    AgentConfig, AgentServerClient, ExecutionStatus, LLMConfig, LocalWorkspace, SendMessageRequest,
-    ServerConfirmationPolicy, StartConversationRequest,
+    AgentConfig, AgentServerClient, ExecutionStatus, LLMConfig, LocalWorkspace, SecurityAnalyzer,
+    SendMessageRequest, ServerConfirmationPolicy, StartConversationRequest,
 };
 pub use websocket::EventStream;
 

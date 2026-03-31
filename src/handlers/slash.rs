@@ -64,14 +64,12 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
                     "never" => Some(AppCommand::SetPolicy(ConfirmationPolicy::NeverConfirm)),
                     "risky" => Some(AppCommand::SetPolicy(ConfirmationPolicy::ConfirmRisky)),
                     _ => {
-                        // Invalid policy - show modal with options
-                        state.show_policy_modal = true;
+                        open_policy_modal(state);
                         None
                     }
                 }
             } else {
-                // No argument - show policy modal
-                state.show_policy_modal = true;
+                open_policy_modal(state);
                 None
             }
         }
@@ -87,4 +85,17 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
             None
         }
     }
+}
+
+fn open_policy_modal(state: &mut AppState) {
+    let policies = [
+        ConfirmationPolicy::AlwaysConfirm,
+        ConfirmationPolicy::ConfirmRisky,
+        ConfirmationPolicy::NeverConfirm,
+    ];
+    state.policy_selected = policies
+        .iter()
+        .position(|p| *p == state.confirmation_policy)
+        .unwrap_or(0);
+    state.show_policy_modal = true;
 }

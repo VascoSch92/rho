@@ -7,6 +7,7 @@ pub mod markdown;
 mod messages;
 pub mod modals;
 pub mod path_utils;
+mod spinner;
 mod status;
 
 pub use layout::render;

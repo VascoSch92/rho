@@ -23,7 +23,22 @@ where
     match StringOrArray::deserialize(deserializer)? {
         StringOrArray::String(s) if !s.is_empty() => Ok(Some(s)),
         StringOrArray::String(_) => Ok(None),
-        StringOrArray::Array(_) => Ok(None),
+        StringOrArray::Array(arr) => {
+            // Extract text from array of {"type":"text","text":"..."} objects
+            let texts: Vec<String> = arr
+                .iter()
+                .filter_map(|v| {
+                    v.get("text")
+                        .and_then(|t| t.as_str())
+                        .map(|s| s.to_string())
+                })
+                .collect();
+            if texts.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(texts.join("\n")))
+            }
+        }
         StringOrArray::Null => Ok(None),
     }
 }
