@@ -192,6 +192,7 @@ impl DisplayMessage {
 pub struct PendingAction {
     pub tool_call_id: String,
     pub tool_name: String,
+    pub args: String,
     pub summary: String,
     pub security_risk: SecurityRisk,
 }
@@ -527,9 +528,31 @@ impl AppState {
                         action.tool_name,
                         action.security_risk
                     );
+                    let args = action
+                        .tool_call
+                        .as_ref()
+                        .and_then(|tc| tc.arguments.as_deref())
+                        .and_then(|a| serde_json::from_str::<serde_json::Value>(a).ok())
+                        .and_then(|val| {
+                            val.as_object().map(|obj| {
+                                obj.iter()
+                                    .filter(|(k, _)| *k != "security_risk" && *k != "summary")
+                                    .map(|(k, v)| {
+                                        let v_str = match v {
+                                            serde_json::Value::String(s) => s.clone(),
+                                            other => other.to_string(),
+                                        };
+                                        format!("{}: {}", k, v_str)
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            })
+                        })
+                        .unwrap_or_default();
                     self.pending_actions.push(PendingAction {
                         tool_call_id: action.tool_call_id.clone(),
                         tool_name: action.tool_name.clone(),
+                        args,
                         summary: action
                             .summary
                             .clone()

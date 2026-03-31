@@ -1,6 +1,35 @@
-# OpenHands TUI (Rust/Ratatui)
+# Rho — OpenHands Agent Server TUI (Rust/Ratatui)
 
-A terminal user interface for OpenHands, built with [Ratatui](https://ratatui.rs/) and designed to connect to the [OpenHands Agent Server](https://docs.openhands.dev/sdk/guides/agent-server/overview).
+A terminal UI for OpenHands, built with [Ratatui](https://ratatui.rs/), that connects to the [OpenHands Agent Server](https://docs.openhands.dev/sdk/guides/agent-server/overview).
+
+Rho can **optionally launch a local Agent Server automatically** if you’ve set up the repo’s Python `.venv` (see Quickstart). Otherwise, it will just connect to whatever `--server` you provide.
+
+## Quickstart (embedded Agent Server)
+
+### 1) Install the Python Agent Server into `.venv`
+
+This repo uses [`uv`](https://docs.astral.sh/uv/) and `pyproject.toml` to install `openhands-agent-server` locally.
+
+```bash
+make build
+```
+
+### 2) Provide an LLM API key (required)
+
+Rho must send an LLM configuration to the Agent Server when starting conversations.
+
+```bash
+export LLM_API_KEY="..."              # required
+export LLM_MODEL="openai/gpt-4o"      # optional (default is an Anthropic model)
+```
+
+### 3) Run
+
+```bash
+cargo run
+```
+
+If you pass `--debug`, logs are written to `.rho/rho.log`.
 
 ## Architecture
 
@@ -8,7 +37,7 @@ A terminal user interface for OpenHands, built with [Ratatui](https://ratatui.rs
 ┌─────────────────────────────────────────────────────────────┐
 │                    Ratatui TUI (Rust)                       │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │ Input Field │  │ Message Log │  │ Confirmation Panel  │  │
+│  │ Input Field │  │ Message Log │  │ Confirmation UI     │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
 │                           │                                  │
 │           ┌───────────────┴───────────────┐                  │
@@ -29,16 +58,18 @@ A terminal user interface for OpenHands, built with [Ratatui](https://ratatui.rs
 ## Features
 
 - **Real-time event streaming** via WebSocket
-- **Action confirmation** with configurable policies (Always/Never/Risky)
-- **Slash commands** (`/help`, `/new`, `/pause`, `/confirm`, `/exit`)
-- **Collapsible messages** for actions and observations
-- **Status indicators** for connection, execution state, and metrics
-- **Notification popups** for important events
+- **Action confirmation** policies: always / only-risky / never
+- **Slash commands** (`/help`, `/new`, `/settings`, `/theme`, …)
+- **Local shell shortcuts**: run a command by typing `!<cmd>` (e.g. `!ls`)
+- **Collapsible actions** + `Ctrl+E` expand/collapse all
+- **Status indicators** for connection, execution status, and token usage
+- **Themes** via `--theme` or `/theme`
 
 ## Prerequisites
 
-1. **Rust toolchain** (1.70+)
-2. **OpenHands Agent Server** running (see below)
+- **Rust toolchain** (edition 2021)
+- For the embedded server path: **Python 3.12** + **uv**
+- An **LLM API key** (set `LLM_API_KEY`)
 
 ## Building
 
@@ -52,32 +83,58 @@ cargo build --release
 
 ## Usage
 
-### 1. Start the Agent Server
+### Embedded server (default if `.venv` exists)
 
-First, start the OpenHands Agent Server (Python):
+If `.venv/bin/python` exists (created by `make build`), Rho will try to start:
+
+- module: `openhands.agent_server`
+- host/port: derived from `--server` (defaults to `http://127.0.0.1:8000`)
+- data dir: `.rho/` (conversations, bash events, logs)
+
+Run:
 
 ```bash
-# Using the OpenHands SDK
+cargo run -- --llm-api-key "$LLM_API_KEY"
+```
+
+### Connect to an existing Agent Server
+
+Start an Agent Server yourself (examples):
+
+```bash
 python -m openhands.agent_server --port 8000
+# or
+# docker run -p 8000:8000 ghcr.io/openhands/agent-server:latest
 ```
 
-Or using Docker:
+Then point Rho at it:
 
 ```bash
-docker run -p 8000:8000 ghcr.io/openhands/agent-server:latest
+cargo run -- \
+  --server http://127.0.0.1:8000 \
+  --llm-api-key "$LLM_API_KEY"
 ```
 
-### 2. Run the TUI
+Note: if you want to *prevent* Rho from attempting to launch an embedded server,
+run without the repo’s `.venv/` present.
+
+### Common options
 
 ```bash
-# Connect to default server (localhost:8000)
-cargo run
-
-# Connect to a specific server
+# Server URL
 cargo run -- --server http://192.168.1.100:8000
 
-# With API key
-cargo run -- --api-key your-api-key
+# Agent Server session auth (header: X-Session-API-Key)
+cargo run -- --session-api-key your-session-key
+
+# Model selection ("provider/model" or just "model")
+cargo run -- --model openai/gpt-4o
+
+# Custom base URL (OpenAI-compatible endpoints)
+cargo run -- --llm-base-url http://localhost:8080/v1
+
+# Workspace directory sent to the agent as the working directory
+cargo run -- --workspace /path/to/repo
 
 # Auto-approve all actions (no confirmation prompts)
 cargo run -- --always-approve
@@ -85,7 +142,7 @@ cargo run -- --always-approve
 # Skip exit confirmation
 cargo run -- --exit-without-confirmation
 
-# Enable debug logging
+# Enable debug logging (writes .rho/rho.log)
 cargo run -- --debug
 ```
 
@@ -94,81 +151,81 @@ cargo run -- --debug
 | Key | Action |
 |-----|--------|
 | `Enter` | Send message |
-| `Esc` | Pause agent / Cancel |
-| `Ctrl+Q` / `Ctrl+C` | Quit (with confirmation) |
-| `Up/Down` | Scroll messages |
-| `PageUp/PageDown` | Scroll faster |
+| `Alt+Enter` / `Shift+Enter` | Insert newline in input |
+| `Esc` | Pause agent (when running) / close modals |
+| `Ctrl+Q` / `Ctrl+C` | Quit (with confirmation unless `--exit-without-confirmation`) |
+| `Ctrl+E` | Expand/collapse all actions |
+| `↑/↓` | Scroll messages |
+| `PgUp/PgDn` | Scroll faster |
 
-### Confirmation Mode
+### Confirmation mode
 
 When actions require confirmation:
 
 | Key | Action |
 |-----|--------|
-| `Y` | Approve action |
-| `N` | Reject action |
-| `A` | Approve all (change policy to Never Confirm) |
-| `D` | Defer (pause agent) |
+| `←/→` | Select confirm option |
+| `Enter` | Apply selected option |
+| `Y` | Accept |
+| `N` | Reject |
+| `A` | Always accept (auto-approve future actions) |
+| `Esc` | Defer (pause) |
 
 ## Slash Commands
 
 | Command | Description |
 |---------|-------------|
-| `/help` | Show available commands |
-| `/new` | Start a new conversation |
+| `/help` | Show help modal |
+| `/new` | Start a new conversation (clears UI state) |
 | `/pause` | Pause the agent |
-| `/confirm <policy>` | Set confirmation policy (always/never/risky) |
-| `/exit` | Exit the application |
+| `/usage` | Show token usage details |
+| `/settings` | Show/edit current settings |
+| `/theme [name]` | Pick or set theme |
+| `/confirm [always\|risky\|never]` | Show/change confirmation policy |
+| `/exit` / `/quit` | Exit the application |
+
+## Local shell commands
+
+Prefix any input with `!` to run it locally and show output in the message log:
+
+- `!pwd`
+- `!ls -la`
+
+## Data & logs
+
+Rho creates a `.rho/` directory at the repository root and uses it for:
+
+- `.rho/conversations/` (Agent Server conversation storage)
+- `.rho/bash_events/` (Agent Server bash event logs)
+- `.rho/rho.log` (when `--debug` is enabled)
 
 ## Project Structure
 
 ```
 src/
-├── main.rs           # Application entry point and event loop
-├── client/
-│   ├── mod.rs        # Client module
-│   ├── api.rs        # HTTP API client
-│   └── websocket.rs  # WebSocket event streaming
-├── events/
-│   └── mod.rs        # Event types (mirrors SDK events)
-├── state/
-│   └── mod.rs        # Application state management
-└── ui/
-    ├── mod.rs        # UI module
-    ├── layout.rs     # Main layout
-    ├── input.rs      # Input field widget
-    ├── messages.rs   # Message list widget
-    ├── status.rs     # Status bar widgets
-    └── confirmation.rs # Confirmation panel
+├── main.rs              # Entry point, terminal setup, embedded server launcher
+├── cli.rs               # CLI args (clap)
+├── client/              # HTTP + WebSocket client for Agent Server
+├── handlers/            # Key handling, slash commands, settings edits, command execution
+├── state/               # App state + message models
+├── ui/                  # Ratatui UI (widgets, modals, markdown rendering)
+└── config/              # Theme definitions
 ```
-
-## Comparison with Python TUI
-
-| Aspect | Python (Textual) | Rust (Ratatui) |
-|--------|------------------|----------------|
-| **Runtime** | Requires Python | Single binary |
-| **Performance** | Good | Excellent |
-| **Memory** | ~50-100MB | ~5-10MB |
-| **Startup** | ~1-2s | ~10ms |
-| **Backend** | Direct SDK calls | Agent Server API |
-| **Distribution** | pip/uv | Single binary |
 
 ## Development
 
 ```bash
-# Run with hot reloading (requires cargo-watch)
-cargo watch -x run
+# Install/update the embedded Agent Server dependencies
+make build
 
-# Run tests
 cargo test
-
-# Check code
 cargo clippy
-
-# Format code
 cargo fmt
+
+# Hot reloading (requires cargo-watch)
+cargo watch -x run
 ```
 
 ## License
 
-MIT License - See [LICENSE](../LICENSE) for details.
+MIT (see `Cargo.toml`).

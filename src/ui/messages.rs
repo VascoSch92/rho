@@ -237,33 +237,24 @@ impl<'a> MessageListWidget<'a> {
                 }
 
                 // Content format: "args_display\nsummary"
-                // tool_name and security_risk are in separate fields
                 let (args_line, summary_line) =
                     msg.content.split_once('\n').unwrap_or((&msg.content, ""));
 
-                // First line: tool_name(args) RISK
-                let mut header_spans = vec![];
+                // Header: ┌─ [✓] tool_name [RISK]
+                let mut header_spans = vec![
+                    Span::styled("┌─ ", Style::default().fg(t.accent)),
+                ];
 
                 if msg.accepted {
                     header_spans.push(Span::styled("✓ ", Style::default().fg(t.success)));
                 }
 
-                // Tool name in accent/blue + bold
                 let tool_name = msg.tool_name.as_deref().unwrap_or("Action");
                 header_spans.push(Span::styled(
                     tool_name.to_string(),
                     Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
                 ));
 
-                // Arguments in grey
-                if !args_line.is_empty() {
-                    header_spans.push(Span::styled(
-                        format!("({})", args_line),
-                        Style::default().fg(t.muted),
-                    ));
-                }
-
-                // Security risk — only show when classified (not UNKNOWN)
                 if let Some(risk) = msg.security_risk {
                     if risk != SecurityRisk::Unknown {
                         header_spans.push(Span::raw(" "));
@@ -276,24 +267,39 @@ impl<'a> MessageListWidget<'a> {
 
                 lines.push(Line::from(header_spans));
 
-                // Second line: ⎿  summary
-                if msg.collapsed {
-                    if !summary_line.is_empty() {
-                        lines.push(Line::from(vec![
-                            Span::styled("  ⎿  ", Style::default().fg(t.muted)),
-                            Span::styled(summary_line.to_string(), Style::default().fg(t.muted)),
-                        ]));
-                    }
-                } else {
+                // Body: always show args, then summary (italic)
+                if !args_line.is_empty() {
+                    lines.push(Line::from(vec![
+                        Span::styled("│ ", Style::default().fg(t.accent)),
+                        Span::styled(args_line.to_string(), Style::default().fg(t.foreground)),
+                    ]));
+                }
+                if !summary_line.is_empty() {
+                    lines.push(Line::from(vec![
+                        Span::styled("│ ", Style::default().fg(t.accent)),
+                        Span::styled(
+                            summary_line.to_string(),
+                            Style::default().fg(t.muted).add_modifier(Modifier::ITALIC),
+                        ),
+                    ]));
+                }
+
+                // Expanded: also show full tool content
+                if !msg.collapsed {
                     let formatted_lines =
-                        Self::format_tool_content(&msg.content, width.saturating_sub(6), t);
+                        Self::format_tool_content(&msg.content, width.saturating_sub(4), t);
                     for formatted_line in formatted_lines {
                         let mut new_spans =
-                            vec![Span::styled("  ⎿  ", Style::default().fg(t.muted))];
+                            vec![Span::styled("│ ", Style::default().fg(t.accent))];
                         new_spans.extend(formatted_line.spans);
                         lines.push(Line::from(new_spans));
                     }
                 }
+
+                // Footer
+                lines.push(Line::from(vec![
+                    Span::styled("└─", Style::default().fg(t.accent)),
+                ]));
             }
             MessageRole::System => {
                 for line in msg.content.lines() {

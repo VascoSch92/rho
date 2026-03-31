@@ -103,11 +103,20 @@ impl Widget for ConfirmationPanel<'_> {
             lines.push(Line::from(""));
 
             lines.push(Self::format_action_line(action, t));
+            if !action.args.is_empty() {
+                lines.push(Line::from(vec![
+                    Span::styled("    ", Style::default()),
+                    Span::styled(
+                        action.args.chars().take(50).collect::<String>(),
+                        Style::default().fg(t.foreground),
+                    ),
+                ]));
+            }
             lines.push(Line::from(vec![
                 Span::styled("    ", Style::default()),
                 Span::styled(
                     action.summary.chars().take(50).collect::<String>(),
-                    Style::default().fg(t.foreground),
+                    Style::default().fg(t.muted).add_modifier(ratatui::style::Modifier::ITALIC),
                 ),
             ]));
         }
