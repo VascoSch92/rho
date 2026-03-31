@@ -155,6 +155,9 @@ pub async fn process_command(
             state.pending_actions.clear();
             state.execution_status = ExecutionStatus::Idle;
             state.conversation_title = None;
+            state.elapsed_seconds = 0;
+            state.elapsed_base = 0;
+            state.start_time = None;
             state.notify(Notification::info("New Conversation", "Starting fresh"));
         }
 

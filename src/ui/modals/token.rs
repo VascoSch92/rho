@@ -44,6 +44,7 @@ impl<'a> TokenUsageModal<'a> {
     }
 }
 
+#[allow(clippy::vec_init_then_push)]
 impl Widget for TokenUsageModal<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let t = &self.state.theme;
@@ -62,7 +63,7 @@ impl Widget for TokenUsageModal<'_> {
         lines.push(Line::from(""));
 
         lines.push(Line::from(vec![
-            Span::styled("  Prompt Tokens:    ", Style::default().fg(t.muted)),
+            Span::styled("  Prompt:           ", Style::default().fg(t.muted)),
             Span::styled(
                 Self::format_tokens(self.state.prompt_tokens),
                 Style::default().fg(t.foreground),
@@ -74,6 +75,44 @@ impl Widget for TokenUsageModal<'_> {
                 Self::format_tokens(self.state.completion_tokens),
                 Style::default().fg(t.foreground),
             ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("  Reasoning:        ", Style::default().fg(t.muted)),
+            Span::styled(
+                Self::format_tokens(self.state.reasoning_tokens),
+                Style::default().fg(t.foreground),
+            ),
+        ]));
+
+        lines.push(Line::from(""));
+
+        lines.push(Line::from(vec![
+            Span::styled("  Cache Read:       ", Style::default().fg(t.muted)),
+            Span::styled(
+                Self::format_tokens(self.state.cache_read_tokens),
+                Style::default().fg(t.success),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("  Cache Write:      ", Style::default().fg(t.muted)),
+            Span::styled(
+                Self::format_tokens(self.state.cache_write_tokens),
+                Style::default().fg(t.foreground),
+            ),
+        ]));
+
+        // Cache hit rate
+        let cache_rate = if self.state.prompt_tokens > 0 {
+            format!(
+                "{:.0}%",
+                self.state.cache_read_tokens as f64 / self.state.prompt_tokens as f64 * 100.0
+            )
+        } else {
+            "—".to_string()
+        };
+        lines.push(Line::from(vec![
+            Span::styled("  Cache Hit Rate:   ", Style::default().fg(t.muted)),
+            Span::styled(cache_rate, Style::default().fg(t.success)),
         ]));
 
         lines.push(Line::from(""));
@@ -91,7 +130,21 @@ impl Widget for TokenUsageModal<'_> {
             ),
         ]));
 
-        lines.push(Line::from(""));
+        // Context utilization (current turn)
+        let ctx_pct = if self.state.context_window > 0 {
+            format!(
+                "{:.0}% of {}",
+                self.state.per_turn_tokens as f64 / self.state.context_window as f64 * 100.0,
+                Self::format_tokens(self.state.context_window),
+            )
+        } else {
+            "—".to_string()
+        };
+        lines.push(Line::from(vec![
+            Span::styled("  Context Usage:    ", Style::default().fg(t.muted)),
+            Span::styled(ctx_pct, Style::default().fg(t.foreground)),
+        ]));
+
         lines.push(Line::from(""));
 
         lines.push(Line::from(vec![

@@ -158,7 +158,7 @@ impl Widget for BottomStatusBar<'_> {
         }
 
         // Context usage bar
-        let context_used = self.state.prompt_tokens;
+        let context_used = self.state.per_turn_tokens;
         let context_max = self.state.context_window;
         let percentage = if context_max > 0 {
             (context_used as f64 / context_max as f64 * 100.0) as u8

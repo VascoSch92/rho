@@ -335,12 +335,17 @@ pub struct AppState {
 
     // Metrics
     pub elapsed_seconds: u64,
+    pub elapsed_base: u64,
     pub start_time: Option<Instant>,
     pub total_tokens: u64,
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cache_write_tokens: u64,
+    pub reasoning_tokens: u64,
+    pub per_turn_tokens: u64,
     pub total_cost: f64,
-    pub context_window: u64, // Max context size for the model
+    pub context_window: u64,
 
     // Exit flag
     pub should_exit: bool,
@@ -413,12 +418,17 @@ impl Default for AppState {
             pending_actions: Vec::new(),
             notifications: Vec::new(),
             elapsed_seconds: 0,
+            elapsed_base: 0,
             start_time: None,
             total_tokens: 0,
             prompt_tokens: 0,
             completion_tokens: 0,
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
+            reasoning_tokens: 0,
+            per_turn_tokens: 0,
             total_cost: 0.0,
-            context_window: 200000, // Default, will be updated from server
+            context_window: 200000,
             should_exit: false,
             exit_confirmation_pending: false,
             show_token_modal: false,
@@ -627,21 +637,34 @@ impl AppState {
             let mut total_cost = 0.0;
             let mut total_prompt = 0u64;
             let mut total_completion = 0u64;
+            let mut total_cache_read = 0u64;
+            let mut total_cache_write = 0u64;
+            let mut total_reasoning = 0u64;
+            let mut last_per_turn = 0u64;
 
             for (_usage_id, metrics) in usage_map {
                 if let Some(cost) = metrics.get("accumulated_cost").and_then(|v| v.as_f64()) {
                     total_cost += cost;
                 }
                 if let Some(usage) = metrics.get("accumulated_token_usage") {
-                    if let Some(prompt) = usage.get("prompt_tokens").and_then(|v| v.as_u64()) {
-                        total_prompt += prompt;
+                    if let Some(v) = usage.get("prompt_tokens").and_then(|v| v.as_u64()) {
+                        total_prompt += v;
                     }
-                    if let Some(completion) =
-                        usage.get("completion_tokens").and_then(|v| v.as_u64())
-                    {
-                        total_completion += completion;
+                    if let Some(v) = usage.get("completion_tokens").and_then(|v| v.as_u64()) {
+                        total_completion += v;
                     }
-                    // Get context window from token usage
+                    if let Some(v) = usage.get("cache_read_tokens").and_then(|v| v.as_u64()) {
+                        total_cache_read += v;
+                    }
+                    if let Some(v) = usage.get("cache_write_tokens").and_then(|v| v.as_u64()) {
+                        total_cache_write += v;
+                    }
+                    if let Some(v) = usage.get("reasoning_tokens").and_then(|v| v.as_u64()) {
+                        total_reasoning += v;
+                    }
+                    if let Some(v) = usage.get("per_turn_token").and_then(|v| v.as_u64()) {
+                        last_per_turn = v;
+                    }
                     if let Some(ctx) = usage.get("context_window").and_then(|v| v.as_u64()) {
                         if ctx > 0 {
                             self.context_window = ctx;
@@ -653,6 +676,10 @@ impl AppState {
             self.total_cost = total_cost;
             self.prompt_tokens = total_prompt;
             self.completion_tokens = total_completion;
+            self.cache_read_tokens = total_cache_read;
+            self.cache_write_tokens = total_cache_write;
+            self.reasoning_tokens = total_reasoning;
+            self.per_turn_tokens = last_per_turn;
             self.total_tokens = total_prompt + total_completion;
 
             if self.total_tokens > 0 || self.total_cost > 0.0 {
@@ -674,11 +701,23 @@ impl AppState {
         }
 
         if let Some(usage) = value.get("accumulated_token_usage") {
-            if let Some(prompt) = usage.get("prompt_tokens").and_then(|v| v.as_u64()) {
-                self.prompt_tokens = prompt;
+            if let Some(v) = usage.get("prompt_tokens").and_then(|v| v.as_u64()) {
+                self.prompt_tokens = v;
             }
-            if let Some(completion) = usage.get("completion_tokens").and_then(|v| v.as_u64()) {
-                self.completion_tokens = completion;
+            if let Some(v) = usage.get("completion_tokens").and_then(|v| v.as_u64()) {
+                self.completion_tokens = v;
+            }
+            if let Some(v) = usage.get("cache_read_tokens").and_then(|v| v.as_u64()) {
+                self.cache_read_tokens = v;
+            }
+            if let Some(v) = usage.get("cache_write_tokens").and_then(|v| v.as_u64()) {
+                self.cache_write_tokens = v;
+            }
+            if let Some(v) = usage.get("reasoning_tokens").and_then(|v| v.as_u64()) {
+                self.reasoning_tokens = v;
+            }
+            if let Some(v) = usage.get("per_turn_token").and_then(|v| v.as_u64()) {
+                self.per_turn_tokens = v;
             }
             if let Some(ctx) = usage.get("context_window").and_then(|v| v.as_u64()) {
                 if ctx > 0 {
@@ -830,17 +869,18 @@ impl AppState {
         }
     }
 
-    /// Update elapsed time
+    /// Update elapsed time (accumulated across all turns in the conversation)
     pub fn update_elapsed(&mut self) {
         if let Some(start) = self.start_time {
             if self.execution_status == ExecutionStatus::Running {
-                self.elapsed_seconds = start.elapsed().as_secs();
+                self.elapsed_seconds = self.elapsed_base + start.elapsed().as_secs();
             }
         }
     }
 
-    /// Start timing
+    /// Start timing a new turn (accumulates with previous turns)
     pub fn start_timer(&mut self) {
+        self.elapsed_base = self.elapsed_seconds;
         self.start_time = Some(Instant::now());
     }
 
