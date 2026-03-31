@@ -15,14 +15,17 @@ use crate::events::{ActionEvent, Event, SecurityRisk};
 const MAX_DISPLAY_MESSAGES: usize = 1000;
 
 /// Confirmation policy for actions
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub enum ConfirmationPolicy {
     /// Always confirm actions before execution
     #[default]
+    #[value(alias = "always")]
     AlwaysConfirm,
     /// Never confirm, auto-approve all actions
+    #[value(alias = "never")]
     NeverConfirm,
     /// Confirm only risky actions (MEDIUM and above)
+    #[value(alias = "risky")]
     ConfirmRisky,
 }
 

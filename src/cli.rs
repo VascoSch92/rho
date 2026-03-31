@@ -71,9 +71,9 @@ pub struct Args {
     #[arg(short, long)]
     pub resume: Option<Uuid>,
 
-    /// Auto-approve all actions (no confirmation)
-    #[arg(long)]
-    pub always_approve: bool,
+    /// Permission mode for action confirmation
+    #[arg(long, value_enum, default_value_t = crate::state::ConfirmationPolicy::AlwaysConfirm)]
+    pub permission_mode: crate::state::ConfirmationPolicy,
 
     /// Skip exit confirmation
     #[arg(long)]

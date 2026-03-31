@@ -241,9 +241,7 @@ impl<'a> MessageListWidget<'a> {
                     msg.content.split_once('\n').unwrap_or((&msg.content, ""));
 
                 // Header: ┌─ [✓] tool_name [RISK]
-                let mut header_spans = vec![
-                    Span::styled("┌─ ", Style::default().fg(t.accent)),
-                ];
+                let mut header_spans = vec![Span::styled("┌─ ", Style::default().fg(t.accent))];
 
                 if msg.accepted {
                     header_spans.push(Span::styled("✓ ", Style::default().fg(t.success)));
@@ -289,17 +287,17 @@ impl<'a> MessageListWidget<'a> {
                     let formatted_lines =
                         Self::format_tool_content(&msg.content, width.saturating_sub(4), t);
                     for formatted_line in formatted_lines {
-                        let mut new_spans =
-                            vec![Span::styled("│ ", Style::default().fg(t.accent))];
+                        let mut new_spans = vec![Span::styled("│ ", Style::default().fg(t.accent))];
                         new_spans.extend(formatted_line.spans);
                         lines.push(Line::from(new_spans));
                     }
                 }
 
                 // Footer
-                lines.push(Line::from(vec![
-                    Span::styled("└─", Style::default().fg(t.accent)),
-                ]));
+                lines.push(Line::from(vec![Span::styled(
+                    "└─",
+                    Style::default().fg(t.accent),
+                )]));
             }
             MessageRole::System => {
                 for line in msg.content.lines() {

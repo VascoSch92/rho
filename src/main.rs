@@ -30,7 +30,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use cli::Args;
 use client::{AgentServerClient, EventStream, ExecutionStatus, LLMConfig};
 use handlers::{handle_key_event, process_command};
-use state::{AppState, ConfirmationPolicy, DisplayMessage, Notification};
+use state::{AppState, DisplayMessage, Notification};
 
 /// Ensure the .rho data directory exists and return its path.
 /// The agent server creates `workspace/conversations/` inside this directory.
@@ -197,9 +197,7 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
     // Create application state
     let mut state = AppState::default();
-    if args.always_approve {
-        state.confirmation_policy = ConfirmationPolicy::NeverConfirm;
-    }
+    state.confirmation_policy = args.permission_mode;
     state.server_starting = server_launched;
     state.theme = args.theme.to_theme();
     state.theme_name = args.theme;

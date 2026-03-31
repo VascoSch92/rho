@@ -116,7 +116,9 @@ impl Widget for ConfirmationPanel<'_> {
                 Span::styled("    ", Style::default()),
                 Span::styled(
                     action.summary.chars().take(50).collect::<String>(),
-                    Style::default().fg(t.muted).add_modifier(ratatui::style::Modifier::ITALIC),
+                    Style::default()
+                        .fg(t.muted)
+                        .add_modifier(ratatui::style::Modifier::ITALIC),
                 ),
             ]));
         }
