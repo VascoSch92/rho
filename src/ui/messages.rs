@@ -226,13 +226,13 @@ impl<'a> MessageListWidget<'a> {
                 lines.push(Line::from(""));
             }
 
-            // Batch header: ┌─  Tool calls: N
+            // Batch header: ┌─ [ Tool calls: N ] with background
+            let badge_style = Style::default().fg(t.foreground).bg(t.border);
             lines.push(Line::from(vec![
-                Span::styled("┌─", Style::default().fg(t.accent)),
-                Span::styled(
-                    format!("  Tool calls: {}", group.len()),
-                    Style::default().fg(t.muted),
-                ),
+                Span::styled("┌─ ", Style::default().fg(t.accent)),
+                Span::styled("[ ", badge_style),
+                Span::styled(format!("Tool calls: {}", group.len()), badge_style),
+                Span::styled(" ]", badge_style),
             ]));
 
             // Each tool call in this batch
