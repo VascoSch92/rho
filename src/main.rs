@@ -301,6 +301,50 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     // Event stream for WebSocket events
     let mut event_stream: Option<EventStream> = None;
 
+    // Handle --resume flag: replay events and connect WebSocket
+    if let Some(conv_id) = args.resume {
+        let conv_id_str = conv_id.as_simple().to_string();
+        let events = state::conversations::load_events(&conv_id_str);
+        info!(
+            "Resuming conversation {} ({} events)",
+            conv_id,
+            events.len()
+        );
+        state.replaying = true;
+        for event in events {
+            state.process_event(event);
+        }
+        state.replaying = false;
+        state.conversation_id = Some(conv_id);
+        state.execution_status = client::ExecutionStatus::Idle;
+        state.pending_actions.clear();
+        state.input_mode = state::InputMode::Normal;
+
+        // Connect WebSocket
+        let ws_url = client.conversation_websocket_url(conv_id);
+        match EventStream::connect(&ws_url).await {
+            Ok(stream) => {
+                event_stream = Some(stream);
+                state.connected = true;
+                // Fetch title/metrics
+                if let Ok(full_state) = client.get_conversation_state(conv_id).await {
+                    if let Some(title) = full_state.get("title").and_then(|v| v.as_str()) {
+                        state.conversation_title = Some(title.to_string());
+                    }
+                    if let Some(stats) = full_state.get("stats") {
+                        state.parse_metrics(stats);
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to connect WebSocket for resumed conversation: {}",
+                    e
+                );
+            }
+        }
+    }
+
     // Main event loop
     let tick_rate = Duration::from_millis(100);
     let notification_duration = Duration::from_secs(5);
