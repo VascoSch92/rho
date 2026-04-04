@@ -10,8 +10,8 @@ use super::{
     input::{input_height, InputWidget},
     messages::MessageListWidget,
     modals::{
-        ConfirmationPanel, ExitConfirmationModal, HelpModal, PolicyModal, SettingsModal,
-        StartupModal, ThemeModal, TokenUsageModal,
+        ConfirmationPanel, ExitConfirmationModal, HelpModal, PolicyModal, ResumeModal,
+        SettingsModal, StartupModal, ThemeModal, TokenUsageModal,
     },
     spinner::{spinner_height, SpinnerWidget},
     status::{BottomStatusBar, NotificationWidget},
@@ -80,6 +80,11 @@ pub fn render(frame: &mut Frame, state: &AppState) {
     // Theme modal
     if state.show_theme_modal {
         frame.render_widget(ThemeModal::new(state), area);
+    }
+
+    // Resume modal
+    if state.show_resume_modal {
+        frame.render_widget(ResumeModal::new(state), area);
     }
 
     // Startup modal (server initializing)

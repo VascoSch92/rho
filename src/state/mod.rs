@@ -2,6 +2,8 @@
 //!
 //! Manages the TUI state including conversation data, UI mode, and user input.
 
+pub mod conversations;
+
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
@@ -366,6 +368,9 @@ pub struct AppState {
     pub total_cost: f64,
     pub context_window: u64,
 
+    // Replay flag — true while replaying stored events on resume
+    pub replaying: bool,
+
     // Exit flag
     pub should_exit: bool,
     pub exit_confirmation_pending: bool,
@@ -418,6 +423,12 @@ pub struct AppState {
 
     // Policy modal state
     pub policy_selected: usize,
+
+    // Resume modal
+    pub show_resume_modal: bool,
+    pub resume_conversations: Vec<conversations::ConversationEntry>,
+    pub resume_selected: usize,
+    pub resume_confirm_delete: bool,
 
     // Theme
     pub theme: Theme,
@@ -488,6 +499,7 @@ impl AppState {
             per_turn_tokens: 0,
             total_cost: 0.0,
             context_window: 200000,
+            replaying: false,
             should_exit: false,
             exit_confirmation_pending: false,
             show_token_modal: false,
@@ -524,6 +536,10 @@ impl AppState {
             server_starting_tick: 0,
             theme: Theme::default(),
             theme_name: "rho".into(),
+            show_resume_modal: false,
+            resume_conversations: Vec::new(),
+            resume_selected: 0,
+            resume_confirm_delete: false,
             available_themes: defaults.theme_names,
             themes: defaults.themes,
             policy_selected: 0,
@@ -561,8 +577,9 @@ impl AppState {
     pub fn process_event(&mut self, event: Event) {
         match event {
             Event::MessageEvent(msg) => {
-                // Skip user messages - we already display them locally when sent
-                if msg.base.source.as_deref() == Some("user") {
+                // Skip user messages during live operation (already displayed locally).
+                // During replay, include them to rebuild history.
+                if !self.replaying && msg.base.source.as_deref() == Some("user") {
                     return;
                 }
 
@@ -588,8 +605,8 @@ impl AppState {
                 let msg = DisplayMessage::action(&action);
                 self.add_message(msg);
 
-                // Check if confirmation is needed based on policy and security risk
-                if self.needs_confirmation(&action) {
+                // Check if confirmation is needed (skip during replay)
+                if !self.replaying && self.needs_confirmation(&action) {
                     tracing::info!(
                         "Action requires confirmation: {} (risk: {:?})",
                         action.tool_name,

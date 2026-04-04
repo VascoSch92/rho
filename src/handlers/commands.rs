@@ -162,6 +162,75 @@ pub async fn process_command(
             state.notify(Notification::info("New Conversation", "Starting fresh"));
         }
 
+        AppCommand::ResumeConversation(conv_id) => {
+            // Disconnect existing stream
+            *event_stream = None;
+            state.messages.clear();
+            state.pending_actions.clear();
+            state.conversation_id = Some(conv_id);
+            state.execution_status = ExecutionStatus::Idle;
+            state.elapsed_seconds = 0;
+            state.elapsed_base = 0;
+            state.start_time = None;
+
+            // Replay stored events to rebuild message history
+            let conv_id_str = conv_id.as_simple().to_string();
+            let events = crate::state::conversations::load_events(&conv_id_str);
+            info!(
+                "Replaying {} events from conversation {}",
+                events.len(),
+                conv_id_str
+            );
+            state.replaying = true;
+            for event in events {
+                state.process_event(event);
+            }
+            state.replaying = false;
+            // After replay, reset to idle (don't stay in whatever state the last event left)
+            state.execution_status = ExecutionStatus::Idle;
+            state.pending_actions.clear();
+            state.input_mode = InputMode::Normal;
+
+            // Connect WebSocket to the existing conversation
+            let ws_url = client.conversation_websocket_url(conv_id);
+            match EventStream::connect(&ws_url).await {
+                Ok(stream) => {
+                    *event_stream = Some(stream);
+                    info!("Resumed conversation: {}", conv_id);
+                    state.connected = true;
+
+                    // Fetch conversation state for title/metrics
+                    match client.get_conversation_state(conv_id).await {
+                        Ok(full_state) => {
+                            if let Some(title) = full_state.get("title").and_then(|v| v.as_str()) {
+                                state.conversation_title = Some(title.to_string());
+                            }
+                            if let Some(stats) = full_state.get("stats") {
+                                state.parse_metrics(stats);
+                            }
+                        }
+                        Err(e) => {
+                            warn!("Failed to fetch conversation state: {}", e);
+                        }
+                    }
+
+                    let short_id = &conv_id.to_string()[..8.min(conv_id.to_string().len())];
+                    state.notify(Notification::info(
+                        "Resumed",
+                        format!("Conversation {}", short_id),
+                    ));
+                }
+                Err(e) => {
+                    error!("Failed to connect to conversation: {}", e);
+                    state.conversation_id = None;
+                    state.add_message(DisplayMessage::error(format!(
+                        "Failed to resume conversation: {}",
+                        e
+                    )));
+                }
+            }
+        }
+
         AppCommand::Pause => {
             if let Some(conv_id) = state.conversation_id {
                 if let Err(e) = client.pause_conversation(conv_id).await {

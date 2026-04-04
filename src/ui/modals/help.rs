@@ -43,6 +43,13 @@ impl Widget for HelpModal<'_> {
             ),
         ]));
         lines.push(Line::from(vec![
+            Span::styled("  /resume    ", Style::default().fg(t.primary)),
+            Span::styled(
+                "Resume a previous conversation",
+                Style::default().fg(t.foreground),
+            ),
+        ]));
+        lines.push(Line::from(vec![
             Span::styled("  /usage     ", Style::default().fg(t.primary)),
             Span::styled(
                 "Show token usage details",

@@ -23,6 +23,13 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
             None
         }
         Some("pause") => Some(AppCommand::Pause),
+        Some("resume") => {
+            state.resume_conversations = crate::state::conversations::scan_conversations();
+            state.resume_selected = 0;
+            state.resume_confirm_delete = false;
+            state.show_resume_modal = true;
+            None
+        }
         Some("theme") => {
             if let Some(name) = parts.get(1) {
                 let name = name.to_lowercase();

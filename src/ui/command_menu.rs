@@ -14,6 +14,7 @@ use crate::state::AppState;
 pub const COMMANDS: &[(&str, &str)] = &[
     ("help", "Show available commands"),
     ("new", "Start a new conversation"),
+    ("resume", "Resume a previous conversation"),
     ("usage", "Show token usage"),
     ("settings", "Show current settings"),
     ("theme", "Change color theme"),

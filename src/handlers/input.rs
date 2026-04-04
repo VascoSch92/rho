@@ -126,6 +126,64 @@ pub fn handle_key_event(
         return None;
     }
 
+    // ── Resume modal ─────────────────────────────────────────────────────
+    if state.show_resume_modal {
+        if state.resume_confirm_delete {
+            // Delete confirmation sub-state
+            match key.code {
+                KeyCode::Char('y') | KeyCode::Char('Y') => {
+                    if let Some(conv) = state.resume_conversations.get(state.resume_selected) {
+                        let id = conv.id.clone();
+                        if let Err(e) = crate::state::conversations::delete_conversation(&id) {
+                            tracing::warn!("Failed to delete conversation: {}", e);
+                        }
+                        state.resume_conversations.remove(state.resume_selected);
+                        if state.resume_selected > 0
+                            && state.resume_selected >= state.resume_conversations.len()
+                        {
+                            state.resume_selected -= 1;
+                        }
+                    }
+                    state.resume_confirm_delete = false;
+                }
+                _ => {
+                    state.resume_confirm_delete = false;
+                }
+            }
+            return None;
+        }
+
+        // Normal resume modal navigation
+        if let Some(action) = state.keybindings.modal.get(&key) {
+            match action {
+                Action::Dismiss => {
+                    state.show_resume_modal = false;
+                }
+                Action::NavUp => {
+                    state.resume_selected = state.resume_selected.saturating_sub(1);
+                }
+                Action::NavDown => {
+                    let max = state.resume_conversations.len().saturating_sub(1);
+                    state.resume_selected = (state.resume_selected + 1).min(max);
+                }
+                Action::Confirm => {
+                    if let Some(conv) = state.resume_conversations.get(state.resume_selected) {
+                        if let Ok(uuid) = uuid::Uuid::parse_str(&conv.id) {
+                            state.show_resume_modal = false;
+                            return Some(AppCommand::ResumeConversation(uuid));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        } else if matches!(key.code, KeyCode::Char('d') | KeyCode::Char('D'))
+            && !state.resume_conversations.is_empty()
+        {
+            state.resume_confirm_delete = true;
+        }
+        return None;
+    }
+
     // ── Settings modal ───────────────────────────────────────────────────
     if state.show_settings_modal {
         return handle_settings_modal_input(state, key);

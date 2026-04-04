@@ -8,6 +8,8 @@ mod slash;
 pub use commands::process_command;
 pub use input::handle_key_event;
 
+use uuid::Uuid;
+
 use crate::state::ConfirmationPolicy;
 
 /// Application commands from user input
@@ -16,6 +18,7 @@ pub enum AppCommand {
     SendMessage(String),
     RunBashCommand(String),
     NewConversation,
+    ResumeConversation(Uuid),
     Pause,
     ConfirmYes,
     ConfirmNo,
