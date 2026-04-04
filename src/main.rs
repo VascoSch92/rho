@@ -176,6 +176,19 @@ fn stop_agent_server(server_process: &mut Option<Child>) {
     }
 }
 
+/// Print goodbye message with optional resume instructions.
+fn print_goodbye(conversation_id: Option<uuid::Uuid>) {
+    println!("\x1b[1;33mGoodbye! 👋\x1b[0m");
+    if let Some(conv_id) = conversation_id {
+        println!("Conversation ID: \x1b[1;34m{}\x1b[0m", conv_id.as_simple());
+        println!(
+            "\x1b[2mHint: run rho --resume {} to resume this conversation.\x1b[0m",
+            conv_id
+        );
+    }
+    println!();
+}
+
 async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     // Setup terminal
     // Note: We DON'T enable mouse capture so users can select/copy text with mouse
@@ -427,6 +440,8 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
+
+    print_goodbye(state.conversation_id);
 
     info!("Rho TUI exited");
     Ok(())
