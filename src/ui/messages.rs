@@ -484,6 +484,19 @@ fn build_banner_lines<'a>(state: &AppState, t: &Theme) -> Vec<Line<'a>> {
 
     // Right-side info lines — each is a Vec<Span> to preserve styling
     let bullet = Span::styled("• ", Style::default().fg(t.muted));
+
+    let id_display = if let Some(id) = state.conversation_id {
+        let id_str = id.to_string();
+        let short_id = if id_str.len() >= 8 {
+            id_str[..8].to_string()
+        } else {
+            id_str
+        };
+        Span::styled(short_id, Style::default().fg(t.accent))
+    } else {
+        Span::styled("---", Style::default().fg(t.muted))
+    };
+
     let info_lines: Vec<Vec<Span>> = vec![
         vec![
             bullet.clone(),
@@ -494,11 +507,17 @@ fn build_banner_lines<'a>(state: &AppState, t: &Theme) -> Vec<Line<'a>> {
             ),
         ],
         vec![
+            bullet.clone(),
+            Span::styled("id:  ", Style::default().fg(t.muted)),
+            id_display,
+        ],
+        vec![
             bullet,
             Span::styled("Type ", Style::default().fg(t.muted)),
             Span::styled("/help", Style::default().fg(t.primary)),
             Span::styled(" for commands", Style::default().fg(t.muted)),
         ],
+        vec![],
         vec![],
         vec![Span::styled(
             "Time to build something awesome",

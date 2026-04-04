@@ -253,4 +253,3 @@ pub fn key_event_to_string(key: &KeyEvent) -> String {
         parts.join("-")
     }
 }
-
