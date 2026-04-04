@@ -8,7 +8,9 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use crate::client::ExecutionStatus;
-use crate::config::theme::{SpinnerStyle, Theme, ThemeName};
+use crate::config::keybindings::KeyBindingsConfig;
+use crate::config::theme::Theme;
+use crate::config::RhoConfig;
 use crate::events::{ActionEvent, Event, SecurityRisk};
 
 /// Maximum number of messages to keep in history for display
@@ -392,8 +394,17 @@ pub struct AppState {
 
     // Animation state
     pub spinner_tick: usize,
-    pub spinner_style: SpinnerStyle,
+    pub spinner_style: String,
+    pub spinner_frames: Vec<String>,
+    pub spinners: std::collections::HashMap<String, Vec<String>>,
+    pub spinner_names: Vec<String>,
     pub fun_fact_index: usize,
+    pub fun_facts: Vec<String>,
+
+    // Config
+    pub keybindings: KeyBindingsConfig,
+    pub scroll_lines: usize,
+    pub scroll_lines_large: usize,
 
     // Workspace info
     pub workspace_path: String,
@@ -410,20 +421,48 @@ pub struct AppState {
 
     // Theme
     pub theme: Theme,
-    pub theme_name: ThemeName,
+    pub theme_name: String,
+    pub available_themes: Vec<String>,
+    pub themes: std::collections::HashMap<String, Theme>,
     pub show_theme_modal: bool,
     pub theme_selected: usize,
-    pub theme_before_preview: Option<ThemeName>,
+    pub theme_before_preview: Option<String>,
 }
 
-impl Default for AppState {
-    fn default() -> Self {
+impl AppState {
+    /// Create AppState with config applied.
+    pub fn with_config(config: RhoConfig) -> Self {
         let provider = LlmProvider::Anthropic;
         let default_model = provider
             .models()
             .first()
             .map(|s| s.to_string())
             .unwrap_or_default();
+        let theme = config.resolve_theme(&config.theme_name);
+        let spinner_frames = config
+            .spinners
+            .get(&config.spinner_style)
+            .cloned()
+            .unwrap_or_default();
+        Self {
+            spinner_style: config.spinner_style,
+            spinner_frames,
+            spinners: config.spinners,
+            spinner_names: config.spinner_names,
+            fun_facts: config.fun_facts,
+            keybindings: config.keybindings,
+            scroll_lines: config.scroll_lines,
+            scroll_lines_large: config.scroll_lines_large,
+            theme,
+            theme_name: config.theme_name,
+            available_themes: config.theme_names,
+            themes: config.themes,
+            ..Self::new_default(provider, default_model)
+        }
+    }
+
+    fn new_default(provider: LlmProvider, default_model: String) -> Self {
+        let defaults = RhoConfig::default();
         Self {
             connected: false,
             conversation_id: None,
@@ -466,19 +505,44 @@ impl Default for AppState {
             command_menu_selected: 0,
             confirmation_selected: 0,
             spinner_tick: 0,
-            spinner_style: SpinnerStyle::Braille,
+            spinner_style: defaults.spinner_style.clone(),
+            spinner_frames: defaults
+                .spinners
+                .get(&defaults.spinner_style)
+                .cloned()
+                .unwrap_or_default(),
+            spinners: defaults.spinners,
+            spinner_names: defaults.spinner_names,
             fun_fact_index: 0,
+            fun_facts: defaults.fun_facts,
+            keybindings: defaults.keybindings,
+            scroll_lines: defaults.scroll_lines,
+            scroll_lines_large: defaults.scroll_lines_large,
             workspace_path: ".".to_string(),
             needs_stats_refresh: false,
             server_starting: false,
             server_starting_tick: 0,
             theme: Theme::default(),
-            theme_name: ThemeName::Rho,
+            theme_name: "rho".into(),
+            available_themes: defaults.theme_names,
+            themes: defaults.themes,
             policy_selected: 0,
             show_theme_modal: false,
             theme_selected: 0,
             theme_before_preview: None,
         }
+    }
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        let provider = LlmProvider::Anthropic;
+        let default_model = provider
+            .models()
+            .first()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        Self::new_default(provider, default_model)
     }
 }
 
@@ -944,27 +1008,46 @@ impl AppState {
 
     /// Change to a new random fun fact
     pub fn next_fun_fact(&mut self) {
-        use crate::config::theme::FUN_FACTS;
-        // Simple rotation - could use random if desired
-        self.fun_fact_index = (self.fun_fact_index + 1) % FUN_FACTS.len();
+        if !self.fun_facts.is_empty() {
+            self.fun_fact_index = (self.fun_fact_index + 1) % self.fun_facts.len();
+        }
     }
 
     /// Cycle to the next spinner style (call when starting a new LLM request)
     pub fn randomize_spinner(&mut self) {
-        self.spinner_style = self.spinner_style.next();
+        if self.spinner_names.len() > 1 {
+            let current_idx = self
+                .spinner_names
+                .iter()
+                .position(|n| *n == self.spinner_style)
+                .unwrap_or(0);
+            let next_idx = (current_idx + 1) % self.spinner_names.len();
+            self.spinner_style = self.spinner_names[next_idx].clone();
+            self.spinner_frames = self
+                .spinners
+                .get(&self.spinner_style)
+                .cloned()
+                .unwrap_or_default();
+        }
         self.spinner_tick = 0;
     }
 
     /// Get the current spinner frame
-    pub fn spinner_frame(&self) -> &'static str {
-        let frames = self.spinner_style.frames();
-        frames[self.spinner_tick % frames.len()]
+    pub fn spinner_frame(&self) -> &str {
+        if self.spinner_frames.is_empty() {
+            "⠋"
+        } else {
+            &self.spinner_frames[self.spinner_tick % self.spinner_frames.len()]
+        }
     }
 
     /// Get the current fun fact
-    pub fn current_fun_fact(&self) -> &'static str {
-        use crate::config::theme::FUN_FACTS;
-        FUN_FACTS[self.fun_fact_index % FUN_FACTS.len()]
+    pub fn current_fun_fact(&self) -> &str {
+        if self.fun_facts.is_empty() {
+            "Thinking..."
+        } else {
+            &self.fun_facts[self.fun_fact_index % self.fun_facts.len()]
+        }
     }
 
     /// Set workspace path

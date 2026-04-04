@@ -1,7 +1,6 @@
 //! Slash command handling (/help, /new, /settings, etc.)
 
 use super::AppCommand;
-use crate::config::theme::ThemeName;
 use crate::state::{AppState, ConfirmationPolicy, DisplayMessage, Notification};
 
 /// Handle slash commands
@@ -26,33 +25,29 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
         Some("pause") => Some(AppCommand::Pause),
         Some("theme") => {
             if let Some(name) = parts.get(1) {
-                match name.parse::<ThemeName>() {
-                    Ok(theme_name) => {
-                        state.theme = theme_name.to_theme();
-                        state.theme_name = theme_name;
-                        state.notify(Notification::info(
-                            "Theme Changed",
-                            format!("Switched to {} theme", theme_name),
-                        ));
-                    }
-                    Err(_) => {
-                        let available: Vec<String> =
-                            ThemeName::all().iter().map(|t| t.to_string()).collect();
-                        state.add_message(DisplayMessage::error(format!(
-                            "Unknown theme: {}. Available: {}",
-                            name,
-                            available.join(", "),
-                        )));
-                    }
+                let name = name.to_lowercase();
+                if let Some(&theme) = state.themes.get(&name) {
+                    state.theme = theme;
+                    state.theme_name = name.clone();
+                    state.notify(Notification::info(
+                        "Theme Changed",
+                        format!("Switched to {} theme", name),
+                    ));
+                } else {
+                    let available = state.available_themes.join(", ");
+                    state.add_message(DisplayMessage::error(format!(
+                        "Unknown theme: {}. Available: {}",
+                        name, available,
+                    )));
                 }
             } else {
                 // Open theme picker modal, save current for revert on Esc
-                let themes = ThemeName::all();
-                state.theme_selected = themes
+                state.theme_selected = state
+                    .available_themes
                     .iter()
                     .position(|t| *t == state.theme_name)
                     .unwrap_or(0);
-                state.theme_before_preview = Some(state.theme_name);
+                state.theme_before_preview = Some(state.theme_name.clone());
                 state.show_theme_modal = true;
             }
             None

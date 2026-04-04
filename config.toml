@@ -1,0 +1,185 @@
+# ── Rho Configuration ─────────────────────────────────────────────────────────
+# Copy this file to ~/.config/rho/config.toml to customise Rho.
+# All sections and keys are optional — defaults are used for anything omitted.
+
+# ── Theme ─────────────────────────────────────────────────────────────────────
+[theme]
+# Active theme name (any key from [theme.themes.*] below)
+name = "rho"
+
+# Built-in themes — override any value or add your own.
+# Colors are hex strings. Use "reset" for the terminal default.
+
+[theme.themes.rho]
+primary    = "#ffe165"
+accent     = "#277dff"
+foreground = "#ffffff"
+background = "reset"
+muted      = "#727987"
+border     = "#505050"
+error      = "#ff6b6b"
+success    = "#6bff6b"
+
+[theme.themes.dracula]
+primary    = "#bd93f9"
+accent     = "#8be9fd"
+foreground = "#f8f8f2"
+background = "reset"
+muted      = "#6272a4"
+border     = "#44475a"
+error      = "#ff5555"
+success    = "#50fa7b"
+
+[theme.themes.catppuccin]
+primary    = "#cba6f7"
+accent     = "#89b4fa"
+foreground = "#cdd6f4"
+background = "reset"
+muted      = "#7f849c"
+border     = "#585b70"
+error      = "#f38ba8"
+success    = "#a6e3a1"
+
+[theme.themes.tokyonight]
+primary    = "#7aa2f7"
+accent     = "#bb9af7"
+foreground = "#c0caf5"
+background = "reset"
+muted      = "#565f89"
+border     = "#3d59a1"
+error      = "#f7768e"
+success    = "#9ece6a"
+
+[theme.themes.solarized]
+primary    = "#b58900"
+accent     = "#268bd2"
+foreground = "#839496"
+background = "reset"
+muted      = "#586e75"
+border     = "#073642"
+error      = "#dc322f"
+success    = "#859900"
+
+[theme.themes.gruvbox]
+primary    = "#fabd2f"
+accent     = "#83a598"
+foreground = "#ebdbb2"
+background = "reset"
+muted      = "#928374"
+border     = "#504945"
+error      = "#fb4934"
+success    = "#b8bb26"
+
+# To add a custom theme, just add a new section:
+# [theme.themes.my_theme]
+# primary    = "#e06c75"
+# accent     = "#61afef"
+# foreground = "#abb2bf"
+# background = "reset"
+# muted      = "#5c6370"
+# border     = "#3e4452"
+# error      = "#be5046"
+# success    = "#98c379"
+
+# ── Spinner ───────────────────────────────────────────────────────────────────
+[spinner]
+# Active spinner style (any key from [spinner.styles.*] below)
+style = "braille"
+
+[spinner.styles]
+braille = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"]
+box     = ["▖", "▘", "▝", "▗", "▚", "▞", "█", "▞", "▚", "▗", "▝", "▘"]
+arrow   = ["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"]
+bar     = ["[=    ]", "[==   ]", "[===  ]", "[ === ]", "[  ===]", "[   ==]", "[    =]", "[   ==]", "[  ===]", "[ === ]", "[===  ]", "[==   ]"]
+
+# To add a custom spinner, just add a new key:
+# [spinner.styles]
+# dots = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
+
+# ── Scrolling ─────────────────────────────────────────────────────────────────
+[scroll]
+lines       = 3    # Arrow Up / Arrow Down
+lines_large = 10   # PageUp / PageDown
+
+# ── Fun Facts (thinking messages) ─────────────────────────────────────────────
+[fun_facts]
+# Set append = true to add your messages to the defaults instead of replacing.
+append = false
+messages = [
+    "Compiling ideas...",
+    "Rebasing thoughts...",
+    "Resolving merge conflicts in my brain...",
+    "git blame: it was me all along",
+    "Consulting the man pages...",
+    "Parsing your intent...",
+    "Running cargo build on a solution...",
+    "Crafting artisanal bytes...",
+    "Grepping the knowledge base...",
+    "Forking a new thought process...",
+    "Traversing the AST of possibilities...",
+    "Borrowing ideas (don't worry, I'll return them)...",
+    "Unwrapping Options...",
+    "Pattern matching on your request...",
+    "Spawning a background task...",
+    "Allocating brain cycles...",
+    "Piping stdout to my response buffer...",
+    "chmod +x solution.sh...",
+    "Reading the source, Luke...",
+    "Talk is cheap. Generating the code.",
+    "sudo think harder...",
+    "Opening a PR against my own assumptions...",
+    "Diffing reality vs expectations...",
+    "Built with Ratatui + Rust + OpenHands...",
+    "Free as in freedom, smart as in AI...",
+    "Upstream looks good, merging thoughts...",
+    "LGTM — Let's Go Think More...",
+    "This commit will fix everything (famous last words)...",
+]
+
+# ── Key Bindings ──────────────────────────────────────────────────────────────
+# Format: "modifier-key" = "action"
+# Modifiers: ctrl-, alt-, shift-   (combinable: ctrl-shift-x)
+# Keys: a-z, 0-9, enter, esc, up, down, left, right, pageup, pagedown,
+#        home, end, tab, backspace, delete, space, f1-f12
+
+[keybindings.global]
+"ctrl-q" = "quit"
+"ctrl-c" = "quit"
+"ctrl-e" = "toggle_collapse_all"
+
+[keybindings.normal]
+"up"          = "scroll_up"
+"down"        = "scroll_down"
+"pageup"      = "scroll_up_large"
+"pagedown"    = "scroll_down_large"
+"left"        = "cursor_left"
+"right"       = "cursor_right"
+"home"        = "cursor_home"
+"end"         = "cursor_end"
+"enter"       = "submit"
+"alt-enter"   = "new_line"
+"shift-enter" = "new_line"
+"backspace"   = "backspace"
+"delete"      = "delete"
+"esc"         = "pause"
+
+[keybindings.confirmation]
+"left"  = "nav_left"
+"right" = "nav_right"
+"enter" = "confirm"
+"y"     = "confirm"
+"Y"     = "confirm"
+"n"     = "reject"
+"N"     = "reject"
+"a"     = "confirm_all"
+"A"     = "confirm_all"
+"esc"   = "dismiss"
+
+[keybindings.modal]
+"esc"   = "dismiss"
+"enter" = "confirm"
+"q"     = "dismiss"
+"up"    = "nav_up"
+"down"  = "nav_down"
+"k"     = "nav_up"
+"j"     = "nav_down"

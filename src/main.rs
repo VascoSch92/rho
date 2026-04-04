@@ -29,6 +29,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use cli::Args;
 use client::{AgentServerClient, EventStream, ExecutionStatus, LLMConfig};
+use config::RhoConfig;
 use handlers::{handle_key_event, process_command};
 use state::{AppState, DisplayMessage, Notification};
 
@@ -195,12 +196,15 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     // Hide the blinking terminal cursor - we render our own visual cursor
     terminal.hide_cursor()?;
 
-    // Create application state
-    let mut state = AppState::default();
+    // Load configuration (from ~/.config/rho/config.toml or defaults)
+    let mut config = RhoConfig::load();
+    // CLI flags override config file
+    config.theme_name = args.theme.clone();
+
+    // Create application state from config
+    let mut state = AppState::with_config(config);
     state.confirmation_policy = args.permission_mode;
     state.server_starting = server_launched;
-    state.theme = args.theme.to_theme();
-    state.theme_name = args.theme;
 
     // Set workspace path for display
     let workspace_path = args

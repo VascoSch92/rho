@@ -9,7 +9,6 @@ use ratatui::{
 };
 
 use super::frame::render_modal;
-use crate::config::theme::ThemeName;
 use crate::state::AppState;
 
 pub struct ThemeModal<'a> {
@@ -27,7 +26,7 @@ impl<'a> ThemeModal<'a> {
 impl Widget for ThemeModal<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let t = &self.state.theme;
-        let themes = ThemeName::all();
+        let themes = &self.state.available_themes;
         let mut lines: Vec<Line> = Vec::new();
 
         lines.push(Line::from(""));
@@ -44,7 +43,7 @@ impl Widget for ThemeModal<'_> {
 
             lines.push(Line::from(vec![
                 Span::styled(indicator, name_style),
-                Span::styled(format!("{}", theme_name), name_style),
+                Span::styled(theme_name.clone(), name_style),
             ]));
         }
 

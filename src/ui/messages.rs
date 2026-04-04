@@ -237,8 +237,7 @@ impl<'a> MessageListWidget<'a> {
 
             // Each tool call in this batch
             for msg in group {
-                let mut header_spans =
-                    vec![Span::styled("├─ ", Style::default().fg(t.accent))];
+                let mut header_spans = vec![Span::styled("├─ ", Style::default().fg(t.accent))];
 
                 if msg.accepted {
                     header_spans.push(Span::styled("✓ ", Style::default().fg(t.success)));
@@ -269,10 +268,7 @@ impl<'a> MessageListWidget<'a> {
                 if !args_line.is_empty() {
                     lines.push(Line::from(vec![
                         Span::styled("│ ", Style::default().fg(t.accent)),
-                        Span::styled(
-                            args_line.to_string(),
-                            Style::default().fg(t.foreground),
-                        ),
+                        Span::styled(args_line.to_string(), Style::default().fg(t.foreground)),
                     ]));
                 }
                 if !summary_line.is_empty() {
@@ -290,8 +286,7 @@ impl<'a> MessageListWidget<'a> {
                     let formatted_lines =
                         Self::format_tool_content(&msg.content, width.saturating_sub(4), t);
                     for formatted_line in formatted_lines {
-                        let mut new_spans =
-                            vec![Span::styled("│ ", Style::default().fg(t.accent))];
+                        let mut new_spans = vec![Span::styled("│ ", Style::default().fg(t.accent))];
                         new_spans.extend(formatted_line.spans);
                         lines.push(Line::from(new_spans));
                     }
@@ -451,8 +446,7 @@ impl Widget for MessageListWidget<'_> {
                     action_group.push(&messages[i]);
                     i += 1;
                 }
-                let group_lines =
-                    Self::format_action_group(&action_group, content_width, t);
+                let group_lines = Self::format_action_group(&action_group, content_width, t);
                 all_lines.extend(group_lines);
             } else {
                 let msg_lines = Self::format_message(&messages[i], content_width, t);

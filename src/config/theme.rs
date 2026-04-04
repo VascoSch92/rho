@@ -1,75 +1,12 @@
-//! Rho theme colors and styles.
+//! Rho theme colors and UI helpers.
 //!
-//! Themes are configurable via `--theme` CLI flag or `/theme` slash command.
+//! All theme definitions, spinner frames, and fun facts live in `config.toml`.
+//! This module provides the runtime types and parsing utilities.
 
 use ratatui::style::Color;
+use serde::Deserialize;
 
-/// Available theme names.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
-pub enum ThemeName {
-    #[default]
-    Rho,
-    Dracula,
-    Catppuccin,
-    Tokyonight,
-    Solarized,
-    Gruvbox,
-}
-
-impl std::fmt::Display for ThemeName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ThemeName::Rho => write!(f, "rho"),
-            ThemeName::Dracula => write!(f, "dracula"),
-            ThemeName::Catppuccin => write!(f, "catppuccin"),
-            ThemeName::Tokyonight => write!(f, "tokyonight"),
-            ThemeName::Solarized => write!(f, "solarized"),
-            ThemeName::Gruvbox => write!(f, "gruvbox"),
-        }
-    }
-}
-
-impl std::str::FromStr for ThemeName {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "rho" => Ok(ThemeName::Rho),
-            "dracula" => Ok(ThemeName::Dracula),
-            "catppuccin" | "catppuccin-mocha" => Ok(ThemeName::Catppuccin),
-            "tokyonight" | "tokyo-night" | "tokyo" => Ok(ThemeName::Tokyonight),
-            "solarized" | "solarized-dark" => Ok(ThemeName::Solarized),
-            "gruvbox" | "gruvbox-dark" => Ok(ThemeName::Gruvbox),
-            _ => Err(format!("unknown theme: {}", s)),
-        }
-    }
-}
-
-impl ThemeName {
-    pub fn all() -> &'static [ThemeName] {
-        &[
-            ThemeName::Rho,
-            ThemeName::Dracula,
-            ThemeName::Catppuccin,
-            ThemeName::Tokyonight,
-            ThemeName::Solarized,
-            ThemeName::Gruvbox,
-        ]
-    }
-
-    pub fn to_theme(self) -> Theme {
-        match self {
-            ThemeName::Rho => Theme::rho(),
-            ThemeName::Dracula => Theme::dracula(),
-            ThemeName::Catppuccin => Theme::catppuccin(),
-            ThemeName::Tokyonight => Theme::tokyonight(),
-            ThemeName::Solarized => Theme::solarized(),
-            ThemeName::Gruvbox => Theme::gruvbox(),
-        }
-    }
-}
-
-/// A complete color theme for the TUI.
+/// A complete color theme for the TUI (runtime representation).
 #[derive(Debug, Clone, Copy)]
 pub struct Theme {
     /// Primary color - branding, cursors, highlights
@@ -90,96 +27,70 @@ pub struct Theme {
     pub success: Color,
 }
 
-impl Theme {
-    /// Default Rho theme (yellow accent on dark terminal).
-    pub fn rho() -> Self {
+impl Default for Theme {
+    fn default() -> Self {
+        // Hardcoded rho fallback — only used if config.toml is completely broken.
         Self {
-            primary: Color::Rgb(255, 225, 101),    // #ffe165
-            accent: Color::Rgb(39, 125, 255),      // #277dff
-            foreground: Color::Rgb(255, 255, 255), // #ffffff
+            primary: Color::Rgb(255, 225, 101),
+            accent: Color::Rgb(39, 125, 255),
+            foreground: Color::Rgb(255, 255, 255),
             background: Color::Reset,
-            muted: Color::Rgb(114, 121, 135),   // #727987
-            border: Color::Rgb(80, 80, 80),     // #505050
-            error: Color::Rgb(255, 107, 107),   // #ff6b6b
-            success: Color::Rgb(107, 255, 107), // #6bff6b
-        }
-    }
-
-    /// Dracula theme.
-    pub fn dracula() -> Self {
-        Self {
-            primary: Color::Rgb(189, 147, 249),    // purple
-            accent: Color::Rgb(139, 233, 253),     // cyan
-            foreground: Color::Rgb(248, 248, 242), // fg
-            background: Color::Reset,
-            muted: Color::Rgb(98, 114, 164),   // comment
-            border: Color::Rgb(68, 71, 90),    // current line
-            error: Color::Rgb(255, 85, 85),    // red
-            success: Color::Rgb(80, 250, 123), // green
-        }
-    }
-
-    /// Catppuccin Mocha theme.
-    pub fn catppuccin() -> Self {
-        Self {
-            primary: Color::Rgb(203, 166, 247),    // mauve
-            accent: Color::Rgb(137, 180, 250),     // blue
-            foreground: Color::Rgb(205, 214, 244), // text
-            background: Color::Reset,
-            muted: Color::Rgb(127, 132, 156),   // overlay0
-            border: Color::Rgb(88, 91, 112),    // surface2
-            error: Color::Rgb(243, 139, 168),   // red
-            success: Color::Rgb(166, 227, 161), // green
-        }
-    }
-
-    /// Tokyo Night theme.
-    pub fn tokyonight() -> Self {
-        Self {
-            primary: Color::Rgb(122, 162, 247),    // blue
-            accent: Color::Rgb(187, 154, 247),     // purple
-            foreground: Color::Rgb(192, 202, 245), // fg
-            background: Color::Reset,
-            muted: Color::Rgb(86, 95, 137),     // comment
-            border: Color::Rgb(61, 89, 161),    // dark blue
-            error: Color::Rgb(247, 118, 142),   // red
-            success: Color::Rgb(158, 206, 106), // green
-        }
-    }
-
-    /// Solarized Dark theme.
-    pub fn solarized() -> Self {
-        Self {
-            primary: Color::Rgb(181, 137, 0),      // yellow
-            accent: Color::Rgb(38, 139, 210),      // blue
-            foreground: Color::Rgb(131, 148, 150), // base0
-            background: Color::Reset,
-            muted: Color::Rgb(88, 110, 117),  // base01
-            border: Color::Rgb(7, 54, 66),    // base02
-            error: Color::Rgb(220, 50, 47),   // red
-            success: Color::Rgb(133, 153, 0), // green
-        }
-    }
-
-    /// Gruvbox Dark theme.
-    pub fn gruvbox() -> Self {
-        Self {
-            primary: Color::Rgb(250, 189, 47),     // yellow
-            accent: Color::Rgb(131, 165, 152),     // aqua
-            foreground: Color::Rgb(235, 219, 178), // fg
-            background: Color::Reset,
-            muted: Color::Rgb(146, 131, 116),  // gray
-            border: Color::Rgb(80, 73, 69),    // bg2
-            error: Color::Rgb(251, 73, 52),    // red
-            success: Color::Rgb(184, 187, 38), // green
+            muted: Color::Rgb(114, 121, 135),
+            border: Color::Rgb(80, 80, 80),
+            error: Color::Rgb(255, 107, 107),
+            success: Color::Rgb(107, 255, 107),
         }
     }
 }
 
-impl Default for Theme {
-    fn default() -> Self {
-        Self::rho()
+/// Deserializable theme definition using hex color strings.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ThemeColors {
+    pub primary: String,
+    pub accent: String,
+    pub foreground: String,
+    #[serde(default = "default_background")]
+    pub background: String,
+    pub muted: String,
+    pub border: String,
+    pub error: String,
+    pub success: String,
+}
+
+fn default_background() -> String {
+    "reset".to_string()
+}
+
+impl ThemeColors {
+    /// Convert to a runtime Theme by parsing hex color strings.
+    pub fn to_theme(&self) -> Result<Theme, String> {
+        Ok(Theme {
+            primary: parse_hex_color(&self.primary)?,
+            accent: parse_hex_color(&self.accent)?,
+            foreground: parse_hex_color(&self.foreground)?,
+            background: parse_hex_color(&self.background)?,
+            muted: parse_hex_color(&self.muted)?,
+            border: parse_hex_color(&self.border)?,
+            error: parse_hex_color(&self.error)?,
+            success: parse_hex_color(&self.success)?,
+        })
     }
+}
+
+/// Parse a hex color string like "#ff6b6b" or "reset" into a ratatui Color.
+pub fn parse_hex_color(s: &str) -> Result<Color, String> {
+    let s = s.trim();
+    if s.eq_ignore_ascii_case("reset") {
+        return Ok(Color::Reset);
+    }
+    let hex = s.strip_prefix('#').unwrap_or(s);
+    if hex.len() != 6 {
+        return Err(format!("invalid hex color: {}", s));
+    }
+    let r = u8::from_str_radix(&hex[0..2], 16).map_err(|_| format!("invalid hex color: {}", s))?;
+    let g = u8::from_str_radix(&hex[2..4], 16).map_err(|_| format!("invalid hex color: {}", s))?;
+    let b = u8::from_str_radix(&hex[4..6], 16).map_err(|_| format!("invalid hex color: {}", s))?;
+    Ok(Color::Rgb(r, g, b))
 }
 
 /// Build the Rho ASCII banner with the version embedded above the "o".
@@ -194,74 +105,7 @@ pub fn rho_banner(version: &str) -> Vec<String> {
     ]
 }
 
-/// Spinner style variants
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SpinnerStyle {
-    Braille,
-    BoxBuilding,
-    ArrowSpin,
-    BouncingBar,
-}
-
-impl SpinnerStyle {
-    pub fn frames(&self) -> &'static [&'static str] {
-        match self {
-            SpinnerStyle::Braille => &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧"],
-            SpinnerStyle::BoxBuilding => {
-                &["▖", "▘", "▝", "▗", "▚", "▞", "█", "▞", "▚", "▗", "▝", "▘"]
-            }
-            SpinnerStyle::ArrowSpin => &["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"],
-            SpinnerStyle::BouncingBar => &[
-                "[=    ]", "[==   ]", "[===  ]", "[ === ]", "[  ===]", "[   ==]", "[    =]",
-                "[   ==]", "[  ===]", "[ === ]", "[===  ]", "[==   ]",
-            ],
-        }
-    }
-
-    pub fn next(&self) -> Self {
-        match self {
-            SpinnerStyle::Braille => SpinnerStyle::BoxBuilding,
-            SpinnerStyle::BoxBuilding => SpinnerStyle::ArrowSpin,
-            SpinnerStyle::ArrowSpin => SpinnerStyle::BouncingBar,
-            SpinnerStyle::BouncingBar => SpinnerStyle::Braille,
-        }
-    }
-}
-
-/// Thinking status messages — open-source and dev themed
-pub const FUN_FACTS: &[&str] = &[
-    "Compiling ideas...",
-    "Rebasing thoughts...",
-    "Resolving merge conflicts in my brain...",
-    "git blame: it was me all along",
-    "Consulting the man pages...",
-    "Parsing your intent...",
-    "Running cargo build on a solution...",
-    "Crafting artisanal bytes...",
-    "Grepping the knowledge base...",
-    "Forking a new thought process...",
-    "Traversing the AST of possibilities...",
-    "Borrowing ideas (don't worry, I'll return them)...",
-    "Unwrapping Options...",
-    "Pattern matching on your request...",
-    "Spawning a background task...",
-    "Allocating brain cycles...",
-    "Piping stdout to my response buffer...",
-    "chmod +x solution.sh...",
-    "Reading the source, Luke...",
-    "Talk is cheap. Generating the code.",
-    "sudo think harder...",
-    "Opening a PR against my own assumptions...",
-    "Diffing reality vs expectations...",
-    "Built with Ratatui + Rust + OpenHands...",
-    "Free as in freedom, smart as in AI...",
-    "Upstream looks good, merging thoughts...",
-    "LGTM — Let's Go Think More...",
-    "This commit will fix everything (famous last words)...",
-];
-
 /// Build styled spans for the thinking message with a 3-letter accent window that sweeps across.
-/// The window moves one position per tick, cycling through the text.
 pub fn animated_thinking_spans(
     text: &str,
     tick: usize,
@@ -273,7 +117,7 @@ pub fn animated_thinking_spans(
         return vec![];
     }
 
-    let window_pos = tick % (len + 3); // sweep past the end before restarting
+    let window_pos = tick % (len + 3);
     let window_size = 3;
 
     let mut spans = Vec::new();
@@ -284,7 +128,6 @@ pub fn animated_thinking_spans(
             && i < window_pos + window_size
             && (i as isize) >= (window_pos as isize);
 
-        // Collect consecutive chars with the same style
         let start = i;
         while i < len {
             let this_in_window = i >= window_pos && i < window_pos + window_size;

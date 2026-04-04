@@ -72,17 +72,12 @@ impl EventStream {
                                     let detail = raw
                                         .get("detail")
                                         .and_then(|v| v.as_str())
-                                        .or_else(|| {
-                                            raw.get("message").and_then(|v| v.as_str())
-                                        })
+                                        .or_else(|| raw.get("message").and_then(|v| v.as_str()))
                                         .or_else(|| raw.get("msg").and_then(|v| v.as_str()))
                                         .or_else(|| {
-                                            raw.get("error")
-                                                .and_then(|v| v.as_object())
-                                                .and_then(|obj| {
-                                                    obj.get("message")
-                                                        .and_then(|v| v.as_str())
-                                                })
+                                            raw.get("error").and_then(|v| v.as_object()).and_then(
+                                                |obj| obj.get("message").and_then(|v| v.as_str()),
+                                            )
                                         })
                                         .map(|s| s.to_string());
                                     event =

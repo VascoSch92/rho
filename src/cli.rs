@@ -83,9 +83,9 @@ pub struct Args {
     #[arg(long)]
     pub debug: bool,
 
-    /// Color theme
-    #[arg(long, env = "RHO_THEME", value_enum, default_value_t = crate::config::theme::ThemeName::Rho)]
-    pub theme: crate::config::theme::ThemeName,
+    /// Color theme (rho, dracula, catppuccin, tokyonight, solarized, gruvbox, or custom)
+    #[arg(long, env = "RHO_THEME", default_value = "rho")]
+    pub theme: String,
 }
 
 /// Parse model argument in format "provider/model" or just "model"
