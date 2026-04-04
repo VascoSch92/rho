@@ -161,6 +161,9 @@ pub struct AgentErrorEvent {
     #[serde(flatten)]
     pub base: EventBase,
     pub error: String,
+    /// Additional detail/message from the error (e.g. HTTP body, explanation)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
 }
 
 /// Conversation state update event

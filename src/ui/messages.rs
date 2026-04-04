@@ -185,6 +185,130 @@ impl<'a> MessageListWidget<'a> {
         lines
     }
 
+    /// Format a group of consecutive Action messages into bordered boxes.
+    /// Actions are split into sub-groups (batches) whenever an action carries
+    /// a `thought` — the thought text is displayed between batches.
+    /// Each batch gets a `┌─  Tool calls: N` header.
+    fn format_action_group(
+        actions: &[&DisplayMessage],
+        width: usize,
+        t: &Theme,
+    ) -> Vec<Line<'static>> {
+        let mut lines = Vec::new();
+
+        // Split into sub-groups: a new sub-group starts when an action has a thought.
+        let mut sub_groups: Vec<(Option<&str>, Vec<&DisplayMessage>)> = Vec::new();
+        for action in actions {
+            if action.thought.is_some() || sub_groups.is_empty() {
+                sub_groups.push((action.thought.as_deref(), vec![action]));
+            } else {
+                sub_groups.last_mut().unwrap().1.push(action);
+            }
+        }
+
+        for (thought, group) in &sub_groups {
+            // Show thought/reasoning before this batch
+            if let Some(thought_text) = thought {
+                lines.push(Line::from(""));
+                let content_width = width.saturating_sub(4);
+                let wrapped = wrap(thought_text, content_width);
+                for line in wrapped.iter() {
+                    lines.push(Line::from(vec![
+                        Span::styled("  ", Style::default()),
+                        Span::styled(
+                            line.to_string(),
+                            Style::default()
+                                .fg(t.foreground)
+                                .add_modifier(Modifier::ITALIC),
+                        ),
+                    ]));
+                }
+                lines.push(Line::from(""));
+            }
+
+            // Batch header: ┌─  Tool calls: N
+            lines.push(Line::from(vec![
+                Span::styled("┌─", Style::default().fg(t.accent)),
+                Span::styled(
+                    format!("  Tool calls: {}", group.len()),
+                    Style::default().fg(t.muted),
+                ),
+            ]));
+
+            // Each tool call in this batch
+            for msg in group {
+                let mut header_spans =
+                    vec![Span::styled("├─ ", Style::default().fg(t.accent))];
+
+                if msg.accepted {
+                    header_spans.push(Span::styled("✓ ", Style::default().fg(t.success)));
+                }
+
+                let tool_name = msg.tool_name.as_deref().unwrap_or("Action");
+                header_spans.push(Span::styled(
+                    tool_name.to_string(),
+                    Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
+                ));
+
+                if let Some(risk) = msg.security_risk {
+                    if risk != SecurityRisk::Unknown {
+                        header_spans.push(Span::raw(" "));
+                        header_spans.push(Span::styled(
+                            format!("{}", risk),
+                            Self::security_risk_style(risk, t),
+                        ));
+                    }
+                }
+
+                lines.push(Line::from(header_spans));
+
+                // Content format: "args_display\nsummary"
+                let (args_line, summary_line) =
+                    msg.content.split_once('\n').unwrap_or((&msg.content, ""));
+
+                if !args_line.is_empty() {
+                    lines.push(Line::from(vec![
+                        Span::styled("│ ", Style::default().fg(t.accent)),
+                        Span::styled(
+                            args_line.to_string(),
+                            Style::default().fg(t.foreground),
+                        ),
+                    ]));
+                }
+                if !summary_line.is_empty() {
+                    lines.push(Line::from(vec![
+                        Span::styled("│ ", Style::default().fg(t.accent)),
+                        Span::styled(
+                            summary_line.to_string(),
+                            Style::default().fg(t.muted).add_modifier(Modifier::ITALIC),
+                        ),
+                    ]));
+                }
+
+                // Expanded: show full tool content
+                if !msg.collapsed {
+                    let formatted_lines =
+                        Self::format_tool_content(&msg.content, width.saturating_sub(4), t);
+                    for formatted_line in formatted_lines {
+                        let mut new_spans =
+                            vec![Span::styled("│ ", Style::default().fg(t.accent))];
+                        new_spans.extend(formatted_line.spans);
+                        lines.push(Line::from(new_spans));
+                    }
+                }
+            }
+
+            // Batch footer
+            lines.push(Line::from(vec![Span::styled(
+                "└─",
+                Style::default().fg(t.accent),
+            )]));
+        }
+
+        lines.push(Line::from(""));
+        lines
+    }
+
     fn format_message(msg: &DisplayMessage, width: usize, t: &Theme) -> Vec<Line<'static>> {
         let mut lines = Vec::new();
         let style = Self::role_style(msg.role, t);
@@ -217,87 +341,15 @@ impl<'a> MessageListWidget<'a> {
                 }
             }
             MessageRole::Action => {
-                // Show thought/reasoning above the action (italic, normal color)
-                if let Some(ref thought) = msg.thought {
-                    lines.push(Line::from(""));
-                    let content_width = width.saturating_sub(4);
-                    let wrapped = wrap(thought, content_width);
-                    for line in wrapped.iter() {
-                        lines.push(Line::from(vec![
-                            Span::styled("  ", Style::default()),
-                            Span::styled(
-                                line.to_string(),
-                                Style::default()
-                                    .fg(t.foreground)
-                                    .add_modifier(Modifier::ITALIC),
-                            ),
-                        ]));
-                    }
-                    lines.push(Line::from(""));
+                // Consecutive actions are merged by format_action_group in render().
+                // This fallback handles any Action that might be called individually.
+                let group = [msg];
+                let mut action_lines = Self::format_action_group(&group, width, t);
+                // Remove the trailing empty line — format_message adds its own
+                if action_lines.last().is_some_and(|l| l.spans.is_empty()) {
+                    action_lines.pop();
                 }
-
-                // Content format: "args_display\nsummary"
-                let (args_line, summary_line) =
-                    msg.content.split_once('\n').unwrap_or((&msg.content, ""));
-
-                // Header: ┌─ [✓] tool_name [RISK]
-                let mut header_spans = vec![Span::styled("┌─ ", Style::default().fg(t.accent))];
-
-                if msg.accepted {
-                    header_spans.push(Span::styled("✓ ", Style::default().fg(t.success)));
-                }
-
-                let tool_name = msg.tool_name.as_deref().unwrap_or("Action");
-                header_spans.push(Span::styled(
-                    tool_name.to_string(),
-                    Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
-                ));
-
-                if let Some(risk) = msg.security_risk {
-                    if risk != SecurityRisk::Unknown {
-                        header_spans.push(Span::raw(" "));
-                        header_spans.push(Span::styled(
-                            format!("{}", risk),
-                            Self::security_risk_style(risk, t),
-                        ));
-                    }
-                }
-
-                lines.push(Line::from(header_spans));
-
-                // Body: always show args, then summary (italic)
-                if !args_line.is_empty() {
-                    lines.push(Line::from(vec![
-                        Span::styled("│ ", Style::default().fg(t.accent)),
-                        Span::styled(args_line.to_string(), Style::default().fg(t.foreground)),
-                    ]));
-                }
-                if !summary_line.is_empty() {
-                    lines.push(Line::from(vec![
-                        Span::styled("│ ", Style::default().fg(t.accent)),
-                        Span::styled(
-                            summary_line.to_string(),
-                            Style::default().fg(t.muted).add_modifier(Modifier::ITALIC),
-                        ),
-                    ]));
-                }
-
-                // Expanded: also show full tool content
-                if !msg.collapsed {
-                    let formatted_lines =
-                        Self::format_tool_content(&msg.content, width.saturating_sub(4), t);
-                    for formatted_line in formatted_lines {
-                        let mut new_spans = vec![Span::styled("│ ", Style::default().fg(t.accent))];
-                        new_spans.extend(formatted_line.spans);
-                        lines.push(Line::from(new_spans));
-                    }
-                }
-
-                // Footer
-                lines.push(Line::from(vec![Span::styled(
-                    "└─",
-                    Style::default().fg(t.accent),
-                )]));
+                lines.extend(action_lines);
             }
             MessageRole::System => {
                 for line in msg.content.lines() {
@@ -306,8 +358,13 @@ impl<'a> MessageListWidget<'a> {
             }
             MessageRole::Error => {
                 let content_width = width.saturating_sub(2);
-                let wrapped = wrap(&msg.content, content_width);
-                for (i, line) in wrapped.iter().enumerate() {
+                // Split error code from detail (separated by newline)
+                let (error_code, detail) =
+                    msg.content.split_once('\n').unwrap_or((&msg.content, ""));
+
+                // Error code line: bold red with ✗ prefix
+                let wrapped_code = wrap(error_code, content_width);
+                for (i, line) in wrapped_code.iter().enumerate() {
                     if i == 0 {
                         lines.push(Line::from(vec![
                             Span::styled("✗ ", style),
@@ -317,6 +374,18 @@ impl<'a> MessageListWidget<'a> {
                         lines.push(Line::from(vec![
                             Span::raw("  "),
                             Span::styled(line.to_string(), style),
+                        ]));
+                    }
+                }
+
+                // Detail lines: muted style, indented
+                if !detail.is_empty() {
+                    let detail_style = Style::default().fg(t.foreground);
+                    let wrapped_detail = wrap(detail, content_width);
+                    for line in wrapped_detail.iter() {
+                        lines.push(Line::from(vec![
+                            Span::raw("  "),
+                            Span::styled(line.to_string(), detail_style),
                         ]));
                     }
                 }
@@ -371,9 +440,25 @@ impl Widget for MessageListWidget<'_> {
         // Always show the banner at the top
         all_lines.extend(build_banner_lines(self.state, t));
 
-        for msg in self.state.messages.iter() {
-            let msg_lines = Self::format_message(msg, content_width, t);
-            all_lines.extend(msg_lines);
+        // Group consecutive Action messages together
+        let messages = &self.state.messages;
+        let mut i = 0;
+        while i < messages.len() {
+            if messages[i].role == MessageRole::Action {
+                // Collect consecutive Action messages
+                let mut action_group: Vec<&DisplayMessage> = Vec::new();
+                while i < messages.len() && messages[i].role == MessageRole::Action {
+                    action_group.push(&messages[i]);
+                    i += 1;
+                }
+                let group_lines =
+                    Self::format_action_group(&action_group, content_width, t);
+                all_lines.extend(group_lines);
+            } else {
+                let msg_lines = Self::format_message(&messages[i], content_width, t);
+                all_lines.extend(msg_lines);
+                i += 1;
+            }
         }
 
         // Spinner is rendered separately in the layout, not in the message list

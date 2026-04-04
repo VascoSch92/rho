@@ -68,6 +68,23 @@ impl EventStream {
                         if matches!(event, Event::Unknown) {
                             if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&text) {
                                 if let Some(code) = raw.get("code").and_then(|v| v.as_str()) {
+                                    // Extract detail from common error fields
+                                    let detail = raw
+                                        .get("detail")
+                                        .and_then(|v| v.as_str())
+                                        .or_else(|| {
+                                            raw.get("message").and_then(|v| v.as_str())
+                                        })
+                                        .or_else(|| raw.get("msg").and_then(|v| v.as_str()))
+                                        .or_else(|| {
+                                            raw.get("error")
+                                                .and_then(|v| v.as_object())
+                                                .and_then(|obj| {
+                                                    obj.get("message")
+                                                        .and_then(|v| v.as_str())
+                                                })
+                                        })
+                                        .map(|s| s.to_string());
                                     event =
                                         Event::AgentErrorEvent(crate::events::AgentErrorEvent {
                                             base: crate::events::EventBase {
@@ -85,6 +102,7 @@ impl EventStream {
                                                     .map(|s| s.to_string()),
                                             },
                                             error: code.to_string(),
+                                            detail,
                                         });
                                 }
                             }

@@ -588,7 +588,12 @@ impl AppState {
                 }
             }
             Event::AgentErrorEvent(err) => {
-                self.add_message(DisplayMessage::error(&err.error));
+                let error_text = if let Some(ref detail) = err.detail {
+                    format!("{}\n{}", err.error, detail)
+                } else {
+                    err.error.clone()
+                };
+                self.add_message(DisplayMessage::error(&error_text));
             }
             Event::ConversationStateUpdateEvent(update) => {
                 tracing::debug!("State update key='{}' value={}", update.key, update.value);
