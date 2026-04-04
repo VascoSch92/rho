@@ -502,7 +502,7 @@ fn build_banner_lines<'a>(state: &AppState, t: &Theme) -> Vec<Line<'a>> {
             bullet.clone(),
             Span::styled("wkr: ", Style::default().fg(t.muted)),
             Span::styled(
-                super::path_utils::truncate_path(&state.workspace_path),
+                super::formatting::truncate_path(&state.workspace_path),
                 Style::default().fg(t.foreground),
             ),
         ],

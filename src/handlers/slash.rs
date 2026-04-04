@@ -19,7 +19,7 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
             None
         }
         Some("settings") => {
-            state.show_settings_modal = true;
+            state.settings.show = true;
             None
         }
         Some("pause") => Some(AppCommand::Pause),

@@ -19,34 +19,6 @@ impl<'a> BottomStatusBar<'a> {
     pub fn new(state: &'a AppState) -> Self {
         Self { state }
     }
-
-    fn format_duration(seconds: u64) -> String {
-        let mins = seconds / 60;
-        let secs = seconds % 60;
-        if mins > 0 {
-            format!("{}m {}s", mins, secs)
-        } else {
-            format!("{}s", secs)
-        }
-    }
-
-    fn format_cost(cost: f64) -> String {
-        if cost < 0.01 {
-            format!("${:.4}", cost)
-        } else {
-            format!("${:.2}", cost)
-        }
-    }
-
-    fn format_tokens(tokens: u64) -> String {
-        if tokens >= 1_000_000 {
-            format!("{:.1}M", tokens as f64 / 1_000_000.0)
-        } else if tokens >= 1_000 {
-            format!("{:.1}k", tokens as f64 / 1_000.0)
-        } else {
-            tokens.to_string()
-        }
-    }
 }
 
 impl Widget for BottomStatusBar<'_> {
@@ -77,9 +49,12 @@ impl Widget for BottomStatusBar<'_> {
         spans.push(Span::styled(" | ", Style::default().fg(t.muted)));
 
         // Elapsed time (if running)
-        if self.state.is_running() || self.state.elapsed_seconds > 0 {
+        if self.state.is_running() || self.state.metrics.elapsed_seconds > 0 {
             spans.push(Span::styled(
-                format!("⏱ {}", Self::format_duration(self.state.elapsed_seconds)),
+                format!(
+                    "⏱ {}",
+                    super::formatting::format_duration(self.state.metrics.elapsed_seconds)
+                ),
                 Style::default().fg(t.primary),
             ));
             spans.push(Span::styled(" | ", Style::default().fg(t.muted)));
@@ -89,16 +64,16 @@ impl Widget for BottomStatusBar<'_> {
         spans.push(Span::styled(
             format!(
                 "{}/{}",
-                self.state.llm_provider.provider_prefix(),
-                self.state.llm_model
+                self.state.llm.provider.provider_prefix(),
+                self.state.llm.model
             ),
             Style::default().fg(t.accent),
         ));
         spans.push(Span::styled(" | ", Style::default().fg(t.muted)));
 
         // Context usage bar
-        let context_used = self.state.per_turn_tokens;
-        let context_max = self.state.context_window;
+        let context_used = self.state.metrics.per_turn_tokens;
+        let context_max = self.state.metrics.context_window;
         let percentage = if context_max > 0 {
             (context_used as f64 / context_max as f64 * 100.0) as u8
         } else {
@@ -148,9 +123,9 @@ impl Widget for BottomStatusBar<'_> {
         spans.push(Span::styled(" | ", Style::default().fg(t.muted)));
 
         // Cost
-        if self.state.total_cost > 0.0 {
+        if self.state.metrics.total_cost > 0.0 {
             spans.push(Span::styled(
-                Self::format_cost(self.state.total_cost),
+                super::formatting::format_cost(self.state.metrics.total_cost),
                 Style::default().fg(t.success),
             ));
             spans.push(Span::styled(" | ", Style::default().fg(t.muted)));
@@ -159,12 +134,12 @@ impl Widget for BottomStatusBar<'_> {
         // Token metrics
         spans.push(Span::styled("↑ ", Style::default().fg(t.muted)));
         spans.push(Span::styled(
-            Self::format_tokens(self.state.prompt_tokens),
+            super::formatting::format_tokens(self.state.metrics.prompt_tokens),
             Style::default().fg(t.foreground),
         ));
         spans.push(Span::styled(" ↓ ", Style::default().fg(t.muted)));
         spans.push(Span::styled(
-            Self::format_tokens(self.state.completion_tokens),
+            super::formatting::format_tokens(self.state.metrics.completion_tokens),
             Style::default().fg(t.foreground),
         ));
 

@@ -1,4 +1,7 @@
 //! Key event handling — dispatches to the appropriate mode handler.
+//!
+//! The main `handle_key_event` function checks global bindings first, then
+//! delegates to the active modal or normal input mode.
 
 use crossterm::event::{self, KeyCode, KeyModifiers};
 
@@ -10,7 +13,7 @@ use crate::config::keybindings::Action;
 use crate::state::{AppState, InputMode};
 use crate::ui::ConfirmOption;
 
-/// Handle key events and return an optional command
+/// Handle key events and return an optional command.
 pub fn handle_key_event(
     state: &mut AppState,
     key: event::KeyEvent,
@@ -37,251 +40,268 @@ pub fn handle_key_event(
         }
     }
 
-    // ── Token modal ──────────────────────────────────────────────────────
+    // ── Modal dispatch ───────────────────────────────────────────────────
     if state.show_token_modal {
-        if let Some(action) = state.keybindings.modal.get(&key) {
-            if matches!(action, Action::Dismiss | Action::Confirm) {
-                state.show_token_modal = false;
-            }
-        }
-        return None;
+        return handle_dismiss_modal(state, key, |s| s.show_token_modal = false);
     }
-
-    // ── Help modal ───────────────────────────────────────────────────────
     if state.show_help_modal {
-        if let Some(action) = state.keybindings.modal.get(&key) {
-            if matches!(action, Action::Dismiss | Action::Confirm) {
-                state.show_help_modal = false;
-            }
-        }
-        return None;
+        return handle_dismiss_modal(state, key, |s| s.show_help_modal = false);
     }
-
-    // ── Policy modal ─────────────────────────────────────────────────────
     if state.show_policy_modal {
-        let policies = [
-            crate::state::ConfirmationPolicy::AlwaysConfirm,
-            crate::state::ConfirmationPolicy::ConfirmRisky,
-            crate::state::ConfirmationPolicy::NeverConfirm,
-        ];
-        if let Some(action) = state.keybindings.modal.get(&key) {
-            match action {
-                Action::Dismiss => {
-                    state.show_policy_modal = false;
-                }
-                Action::NavUp => {
-                    state.policy_selected = state.policy_selected.saturating_sub(1);
-                }
-                Action::NavDown => {
-                    state.policy_selected = (state.policy_selected + 1).min(policies.len() - 1);
-                }
-                Action::Confirm => {
-                    state.confirmation_policy = policies[state.policy_selected];
-                    state.show_policy_modal = false;
-                }
-                _ => {}
-            }
-        }
-        return None;
+        return handle_policy_modal(state, key);
     }
-
-    // ── Theme modal ──────────────────────────────────────────────────────
     if state.show_theme_modal {
-        let num_themes = state.available_themes.len();
-        if let Some(action) = state.keybindings.modal.get(&key) {
-            match action {
-                Action::Dismiss => {
-                    if let Some(original) = state.theme_before_preview.take() {
-                        if let Some(&t) = state.themes.get(&original) {
-                            state.theme = t;
-                        }
-                        state.theme_name = original;
-                    }
-                    state.show_theme_modal = false;
-                }
-                Action::NavUp => {
-                    state.theme_selected = state.theme_selected.saturating_sub(1);
-                    let name = &state.available_themes[state.theme_selected];
-                    if let Some(&t) = state.themes.get(name) {
-                        state.theme = t;
-                    }
-                    state.theme_name = name.clone();
-                }
-                Action::NavDown => {
-                    state.theme_selected =
-                        (state.theme_selected + 1).min(num_themes.saturating_sub(1));
-                    let name = &state.available_themes[state.theme_selected];
-                    if let Some(&t) = state.themes.get(name) {
-                        state.theme = t;
-                    }
-                    state.theme_name = name.clone();
-                }
-                Action::Confirm => {
-                    state.theme_before_preview = None;
-                    state.show_theme_modal = false;
-                }
-                _ => {}
-            }
-        }
-        return None;
+        return handle_theme_modal(state, key);
     }
-
-    // ── Resume modal ─────────────────────────────────────────────────────
     if state.show_resume_modal {
-        if state.resume_confirm_delete {
-            // Delete confirmation sub-state
-            match key.code {
-                KeyCode::Char('y') | KeyCode::Char('Y') => {
-                    if let Some(conv) = state.resume_conversations.get(state.resume_selected) {
-                        let id = conv.id.clone();
-                        if let Err(e) = crate::state::conversations::delete_conversation(&id) {
-                            tracing::warn!("Failed to delete conversation: {}", e);
-                        }
-                        state.resume_conversations.remove(state.resume_selected);
-                        if state.resume_selected > 0
-                            && state.resume_selected >= state.resume_conversations.len()
-                        {
-                            state.resume_selected -= 1;
-                        }
-                    }
-                    state.resume_confirm_delete = false;
-                }
-                _ => {
-                    state.resume_confirm_delete = false;
-                }
-            }
-            return None;
-        }
-
-        // Normal resume modal navigation
-        if let Some(action) = state.keybindings.modal.get(&key) {
-            match action {
-                Action::Dismiss => {
-                    state.show_resume_modal = false;
-                }
-                Action::NavUp => {
-                    state.resume_selected = state.resume_selected.saturating_sub(1);
-                }
-                Action::NavDown => {
-                    let max = state.resume_conversations.len().saturating_sub(1);
-                    state.resume_selected = (state.resume_selected + 1).min(max);
-                }
-                Action::Confirm => {
-                    if let Some(conv) = state.resume_conversations.get(state.resume_selected) {
-                        if let Ok(uuid) = uuid::Uuid::parse_str(&conv.id) {
-                            state.show_resume_modal = false;
-                            return Some(AppCommand::ResumeConversation(uuid));
-                        }
-                    }
-                }
-                _ => {}
-            }
-        } else if matches!(key.code, KeyCode::Char('d') | KeyCode::Char('D'))
-            && !state.resume_conversations.is_empty()
-        {
-            state.resume_confirm_delete = true;
-        }
-        return None;
+        return handle_resume_modal(state, key);
     }
-
-    // ── Settings modal ───────────────────────────────────────────────────
-    if state.show_settings_modal {
+    if state.settings.show {
         return handle_settings_modal_input(state, key);
     }
-
-    // ── Notification — any key dismisses ─────────────────────────────────
     if !state.notifications.is_empty() {
         state.notifications.clear();
         return None;
     }
-
-    // ── Exit confirmation ────────────────────────────────────────────────
     if state.exit_confirmation_pending {
-        match key.code {
-            KeyCode::Char('y') | KeyCode::Char('Y') => return Some(AppCommand::ForceQuit),
-            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-                return Some(AppCommand::CancelQuit)
-            }
-            _ => return None,
-        }
+        return handle_exit_confirmation(key);
     }
-
-    // ── Confirmation mode ────────────────────────────────────────────────
     if state.input_mode == InputMode::Confirmation {
-        let num_options = ConfirmOption::all().len();
-        if let Some(action) = state.keybindings.confirmation.get(&key) {
-            match action {
-                Action::NavLeft => {
-                    state.confirmation_selected = state.confirmation_selected.saturating_sub(1);
-                    return None;
-                }
-                Action::NavRight => {
-                    state.confirmation_selected =
-                        (state.confirmation_selected + 1).min(num_options - 1);
-                    return None;
-                }
-                Action::Confirm => {
-                    let selected = ConfirmOption::all()[state.confirmation_selected];
-                    state.confirmation_selected = 0;
-                    return match selected {
-                        ConfirmOption::Accept => Some(AppCommand::ConfirmYes),
-                        ConfirmOption::AlwaysAccept => Some(AppCommand::ConfirmAll),
-                        ConfirmOption::Reject => Some(AppCommand::ConfirmNo),
-                    };
-                }
-                Action::ConfirmAll => return Some(AppCommand::ConfirmAll),
-                Action::Reject => return Some(AppCommand::ConfirmNo),
-                Action::Dismiss => return Some(AppCommand::ConfirmDefer),
-                _ => return None,
-            }
-        }
-        return None;
+        return handle_confirmation_mode(state, key);
     }
 
-    // ── Command menu navigation ──────────────────────────────────────────
+    // ── Command menu ────────────────────────────────────────────────────
     if state.show_command_menu {
-        match key.code {
-            KeyCode::Up => {
-                let count = crate::ui::command_menu::command_count(state);
-                if count > 0 {
-                    state.command_menu_selected = state.command_menu_selected.saturating_sub(1);
-                }
-                return None;
+        if let Some(cmd) = handle_command_menu(state, key) {
+            return cmd;
+        }
+    }
+
+    // ── Normal input ────────────────────────────────────────────────────
+    handle_normal_input(state, key)
+}
+
+// ── Modal handlers ──────────────────────────────────────────────────────────
+
+/// Simple dismiss-only modal (token usage, help).
+fn handle_dismiss_modal(
+    state: &mut AppState,
+    key: event::KeyEvent,
+    close: impl FnOnce(&mut AppState),
+) -> Option<AppCommand> {
+    if let Some(action) = state.keybindings.modal.get(&key) {
+        if matches!(action, Action::Dismiss | Action::Confirm) {
+            close(state);
+        }
+    }
+    None
+}
+
+/// Policy picker modal.
+fn handle_policy_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppCommand> {
+    let policies = [
+        crate::state::ConfirmationPolicy::AlwaysConfirm,
+        crate::state::ConfirmationPolicy::ConfirmRisky,
+        crate::state::ConfirmationPolicy::NeverConfirm,
+    ];
+    if let Some(action) = state.keybindings.modal.get(&key) {
+        match action {
+            Action::Dismiss => state.show_policy_modal = false,
+            Action::NavUp => {
+                state.policy_selected = state.policy_selected.saturating_sub(1);
             }
-            KeyCode::Down => {
-                let count = crate::ui::command_menu::command_count(state);
-                if count > 0 {
-                    state.command_menu_selected = (state.command_menu_selected + 1) % count;
-                }
-                return None;
+            Action::NavDown => {
+                state.policy_selected = (state.policy_selected + 1).min(policies.len() - 1);
             }
-            KeyCode::Tab => {
-                if let Some(cmd) = crate::ui::command_menu::selected_command(state) {
-                    state.input_buffer = format!("/{}", cmd);
-                    state.cursor_position = state.input_buffer.len();
-                    state.show_command_menu = false;
-                }
-                return None;
-            }
-            KeyCode::Enter => {
-                if let Some(cmd) = crate::ui::command_menu::selected_command(state) {
-                    state.input_buffer = format!("/{}", cmd);
-                    state.cursor_position = state.input_buffer.len();
-                    state.show_command_menu = false;
-                    let input = state.take_input();
-                    return handle_slash_command(&input[1..], state);
-                }
-                return None;
-            }
-            KeyCode::Esc => {
-                state.show_command_menu = false;
-                return None;
+            Action::Confirm => {
+                state.confirmation_policy = policies[state.policy_selected];
+                state.show_policy_modal = false;
             }
             _ => {}
         }
     }
+    None
+}
 
-    // ── Normal input mode (config-driven where possible) ─────────────────
+/// Theme picker modal with live preview.
+fn handle_theme_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppCommand> {
+    let num_themes = state.available_themes.len();
+    if let Some(action) = state.keybindings.modal.get(&key) {
+        match action {
+            Action::Dismiss => {
+                if let Some(original) = state.theme_before_preview.take() {
+                    if let Some(&t) = state.themes.get(&original) {
+                        state.theme = t;
+                    }
+                    state.theme_name = original;
+                }
+                state.show_theme_modal = false;
+            }
+            Action::NavUp => {
+                state.theme_selected = state.theme_selected.saturating_sub(1);
+                apply_theme_preview(state);
+            }
+            Action::NavDown => {
+                state.theme_selected = (state.theme_selected + 1).min(num_themes.saturating_sub(1));
+                apply_theme_preview(state);
+            }
+            Action::Confirm => {
+                state.theme_before_preview = None;
+                state.show_theme_modal = false;
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn apply_theme_preview(state: &mut AppState) {
+    let name = &state.available_themes[state.theme_selected];
+    if let Some(&t) = state.themes.get(name) {
+        state.theme = t;
+    }
+    state.theme_name = name.clone();
+}
+
+/// Resume conversation modal with delete support.
+fn handle_resume_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppCommand> {
+    if state.resume_confirm_delete {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                if let Some(conv) = state.resume_conversations.get(state.resume_selected) {
+                    let id = conv.id.clone();
+                    if let Err(e) = crate::state::conversations::delete_conversation(&id) {
+                        tracing::warn!("Failed to delete conversation: {}", e);
+                    }
+                    state.resume_conversations.remove(state.resume_selected);
+                    if state.resume_selected > 0
+                        && state.resume_selected >= state.resume_conversations.len()
+                    {
+                        state.resume_selected -= 1;
+                    }
+                }
+                state.resume_confirm_delete = false;
+            }
+            _ => state.resume_confirm_delete = false,
+        }
+        return None;
+    }
+
+    if let Some(action) = state.keybindings.modal.get(&key) {
+        match action {
+            Action::Dismiss => state.show_resume_modal = false,
+            Action::NavUp => {
+                state.resume_selected = state.resume_selected.saturating_sub(1);
+            }
+            Action::NavDown => {
+                let max = state.resume_conversations.len().saturating_sub(1);
+                state.resume_selected = (state.resume_selected + 1).min(max);
+            }
+            Action::Confirm => {
+                if let Some(conv) = state.resume_conversations.get(state.resume_selected) {
+                    if let Ok(uuid) = uuid::Uuid::parse_str(&conv.id) {
+                        state.show_resume_modal = false;
+                        return Some(AppCommand::ResumeConversation(uuid));
+                    }
+                }
+            }
+            _ => {}
+        }
+    } else if matches!(key.code, KeyCode::Char('d') | KeyCode::Char('D'))
+        && !state.resume_conversations.is_empty()
+    {
+        state.resume_confirm_delete = true;
+    }
+    None
+}
+
+/// Exit confirmation (y/n).
+fn handle_exit_confirmation(key: event::KeyEvent) -> Option<AppCommand> {
+    match key.code {
+        KeyCode::Char('y') | KeyCode::Char('Y') => Some(AppCommand::ForceQuit),
+        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Some(AppCommand::CancelQuit),
+        _ => None,
+    }
+}
+
+/// Action confirmation dialog (accept/reject/always).
+fn handle_confirmation_mode(state: &mut AppState, key: event::KeyEvent) -> Option<AppCommand> {
+    let num_options = ConfirmOption::all().len();
+    if let Some(action) = state.keybindings.confirmation.get(&key) {
+        match action {
+            Action::NavLeft => {
+                state.confirmation_selected = state.confirmation_selected.saturating_sub(1);
+            }
+            Action::NavRight => {
+                state.confirmation_selected =
+                    (state.confirmation_selected + 1).min(num_options - 1);
+            }
+            Action::Confirm => {
+                let selected = ConfirmOption::all()[state.confirmation_selected];
+                state.confirmation_selected = 0;
+                return match selected {
+                    ConfirmOption::Accept => Some(AppCommand::ConfirmYes),
+                    ConfirmOption::AlwaysAccept => Some(AppCommand::ConfirmAll),
+                    ConfirmOption::Reject => Some(AppCommand::ConfirmNo),
+                };
+            }
+            Action::ConfirmAll => return Some(AppCommand::ConfirmAll),
+            Action::Reject => return Some(AppCommand::ConfirmNo),
+            Action::Dismiss => return Some(AppCommand::ConfirmDefer),
+            _ => {}
+        }
+    }
+    None
+}
+
+// ── Command menu & normal input ─────────────────────────────────────────────
+
+/// Handle command menu navigation. Returns Some(Some(cmd)) to return a command,
+/// Some(None) to consume the event, or None to fall through to normal input.
+fn handle_command_menu(state: &mut AppState, key: event::KeyEvent) -> Option<Option<AppCommand>> {
+    match key.code {
+        KeyCode::Up => {
+            let count = crate::ui::command_menu::command_count(state);
+            if count > 0 {
+                state.command_menu_selected = state.command_menu_selected.saturating_sub(1);
+            }
+            Some(None)
+        }
+        KeyCode::Down => {
+            let count = crate::ui::command_menu::command_count(state);
+            if count > 0 {
+                state.command_menu_selected = (state.command_menu_selected + 1) % count;
+            }
+            Some(None)
+        }
+        KeyCode::Tab => {
+            if let Some(cmd) = crate::ui::command_menu::selected_command(state) {
+                state.input_buffer = format!("/{}", cmd);
+                state.cursor_position = state.input_buffer.len();
+                state.show_command_menu = false;
+            }
+            Some(None)
+        }
+        KeyCode::Enter => {
+            if let Some(cmd) = crate::ui::command_menu::selected_command(state) {
+                state.input_buffer = format!("/{}", cmd);
+                state.cursor_position = state.input_buffer.len();
+                state.show_command_menu = false;
+                let input = state.take_input();
+                return Some(handle_slash_command(&input[1..], state));
+            }
+            Some(None)
+        }
+        KeyCode::Esc => {
+            state.show_command_menu = false;
+            Some(None)
+        }
+        _ => None, // Fall through to normal input
+    }
+}
+
+/// Handle normal input mode (typing, scrolling, cursor movement).
+fn handle_normal_input(state: &mut AppState, key: event::KeyEvent) -> Option<AppCommand> {
     if let Some(action) = state.keybindings.normal.get(&key) {
         match action {
             Action::Submit => {
@@ -359,9 +379,8 @@ pub fn handle_key_event(
         }
     }
 
-    // ── Character input (not bound to any action) ────────────────────────
+    // Character input (not bound to any action)
     if let KeyCode::Char(c) = key.code {
-        // Don't capture modified chars (ctrl-x is handled by global bindings above)
         if key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT {
             state.handle_char(c);
             if state.input_buffer.starts_with('/') && state.input_buffer.len() <= 10 {

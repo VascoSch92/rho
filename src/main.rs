@@ -245,19 +245,19 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
     // Apply LLM settings to state
     let (provider, model) = cli::parse_model_arg(&effective_model);
-    state.llm_provider = provider;
-    state.llm_model = model;
-    state.llm_base_url = effective_base_url.clone();
+    state.llm.provider = provider;
+    state.llm.model = model;
+    state.llm.base_url = effective_base_url.clone();
 
     // API key: CLI/env > config
     let llm_api_key = match &args.llm_api_key {
         Some(key) => {
-            state.llm_api_key = key.clone();
+            state.llm.api_key = key.clone();
             key.clone()
         }
         None => match &config_llm.api_key {
             Some(key) if !key.is_empty() => {
-                state.llm_api_key = key.clone();
+                state.llm.api_key = key.clone();
                 key.clone()
             }
             _ => {
@@ -302,6 +302,9 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
     // Handle --resume flag: replay events and connect WebSocket
     if let Some(conv_id) = args.resume {
+        state.reset_conversation();
+        state.conversation_id = Some(conv_id);
+
         let conv_id_str = conv_id.as_simple().to_string();
         let events = state::conversations::load_events(&conv_id_str);
         info!(
@@ -314,10 +317,7 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
             state.process_event(event);
         }
         state.replaying = false;
-        state.conversation_id = Some(conv_id);
         state.execution_status = client::ExecutionStatus::Idle;
-        state.pending_actions.clear();
-        state.input_mode = state::InputMode::Normal;
 
         // Connect WebSocket
         let ws_url = client.conversation_websocket_url(conv_id);

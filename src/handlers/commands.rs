@@ -149,29 +149,15 @@ pub async fn process_command(
         }
 
         AppCommand::NewConversation => {
-            // Disconnect existing stream
             *event_stream = None;
-            state.conversation_id = None;
-            state.messages.clear();
-            state.pending_actions.clear();
-            state.execution_status = ExecutionStatus::Idle;
-            state.conversation_title = None;
-            state.elapsed_seconds = 0;
-            state.elapsed_base = 0;
-            state.start_time = None;
+            state.reset_conversation();
             state.notify(Notification::info("New Conversation", "Starting fresh"));
         }
 
         AppCommand::ResumeConversation(conv_id) => {
-            // Disconnect existing stream
             *event_stream = None;
-            state.messages.clear();
-            state.pending_actions.clear();
+            state.reset_conversation();
             state.conversation_id = Some(conv_id);
-            state.execution_status = ExecutionStatus::Idle;
-            state.elapsed_seconds = 0;
-            state.elapsed_base = 0;
-            state.start_time = None;
 
             // Replay stored events to rebuild message history
             let conv_id_str = conv_id.as_simple().to_string();
@@ -186,7 +172,7 @@ pub async fn process_command(
                 state.process_event(event);
             }
             state.replaying = false;
-            // After replay, reset to idle (don't stay in whatever state the last event left)
+            // Reset execution state after replay
             state.execution_status = ExecutionStatus::Idle;
             state.pending_actions.clear();
             state.input_mode = InputMode::Normal;

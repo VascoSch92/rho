@@ -73,7 +73,7 @@ pub fn render(frame: &mut Frame, state: &AppState) {
     }
 
     // Settings modal
-    if state.show_settings_modal {
+    if state.settings.show {
         frame.render_widget(SettingsModal::new(state), area);
     }
 

@@ -41,9 +41,9 @@ impl Widget for SettingsModal<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let t = &self.state.theme;
         let mut lines: Vec<Line> = Vec::new();
-        let selected = self.state.settings_field;
-        let editing = self.state.settings_editing;
-        let dropdown = self.state.settings_dropdown;
+        let selected = self.state.settings.field;
+        let editing = self.state.settings.editing;
+        let dropdown = self.state.settings.dropdown;
 
         lines.push(Line::from(""));
 
@@ -54,7 +54,7 @@ impl Widget for SettingsModal<'_> {
         lines.push(Line::from(vec![
             Span::styled(indicator(is_selected), label_style),
             Span::styled("Provider:  ", label_style),
-            Span::styled(self.state.llm_provider.display_name(), value_style),
+            Span::styled(self.state.llm.provider.display_name(), value_style),
             if is_selected && !dropdown {
                 Span::styled("  Enter to select", Style::default().fg(t.muted))
             } else {
@@ -66,7 +66,7 @@ impl Widget for SettingsModal<'_> {
         if is_selected && dropdown {
             let providers = LlmProvider::all();
             for (i, p) in providers.iter().enumerate() {
-                let is_dd_selected = i == self.state.settings_dropdown_selected;
+                let is_dd_selected = i == self.state.settings.dropdown_selected;
                 let dd_style = if is_dd_selected {
                     Style::default().fg(t.primary).add_modifier(Modifier::BOLD)
                 } else {
@@ -88,10 +88,10 @@ impl Widget for SettingsModal<'_> {
         // ── Model field (1) ──────────────────────────────────────────────
         let is_selected = selected == 1;
         let label_style = field_label_style(is_selected, t);
-        let model_display = if self.state.llm_model.is_empty() {
+        let model_display = if self.state.llm.model.is_empty() {
             "(select a model)"
         } else {
-            &self.state.llm_model
+            &self.state.llm.model
         };
         lines.push(Line::from(vec![
             Span::styled(indicator(is_selected), label_style),
@@ -106,9 +106,9 @@ impl Widget for SettingsModal<'_> {
 
         // Model dropdown
         if is_selected && dropdown {
-            let models = self.state.llm_provider.models();
+            let models = self.state.llm.provider.models();
             for (i, m) in models.iter().enumerate() {
-                let is_dd_selected = i == self.state.settings_dropdown_selected;
+                let is_dd_selected = i == self.state.settings.dropdown_selected;
                 let dd_style = if is_dd_selected {
                     Style::default().fg(t.primary).add_modifier(Modifier::BOLD)
                 } else {
@@ -131,9 +131,9 @@ impl Widget for SettingsModal<'_> {
         let is_selected = selected == 2;
         let label_style = field_label_style(is_selected, t);
         let key_display = if is_selected && editing {
-            format!("{}_", &self.state.settings_edit_buffer)
+            format!("{}_", &self.state.settings.edit_buffer)
         } else {
-            Self::mask_api_key(&self.state.llm_api_key)
+            Self::mask_api_key(&self.state.llm.api_key)
         };
         let value_style = if is_selected && editing {
             Style::default().fg(t.success)
@@ -157,10 +157,11 @@ impl Widget for SettingsModal<'_> {
         let is_selected = selected == 3;
         let label_style = field_label_style(is_selected, t);
         let url_display = if is_selected && editing {
-            format!("{}_", &self.state.settings_edit_buffer)
+            format!("{}_", &self.state.settings.edit_buffer)
         } else {
             self.state
-                .llm_base_url
+                .llm
+                .base_url
                 .clone()
                 .unwrap_or_else(|| "(default)".to_string())
         };
