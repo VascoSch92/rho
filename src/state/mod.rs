@@ -282,6 +282,19 @@ impl LlmProvider {
         }
     }
 
+    /// Provider prefix for the model string (e.g. "anthropic", "openai").
+    pub fn provider_prefix(&self) -> &str {
+        match self {
+            LlmProvider::OpenHands => "openhands",
+            LlmProvider::Anthropic => "anthropic",
+            LlmProvider::OpenAI => "openai",
+            LlmProvider::Mistral => "mistral",
+            LlmProvider::Google => "google",
+            LlmProvider::DeepSeek => "deepseek",
+            LlmProvider::Other(s) => s,
+        }
+    }
+
     pub fn all() -> Vec<LlmProvider> {
         vec![
             LlmProvider::OpenHands,
@@ -381,8 +394,10 @@ pub struct AppState {
     pub show_policy_modal: bool,
     pub show_settings_modal: bool,
     pub settings_field: usize, // 0=Provider, 1=Model, 2=API Key, 3=Base URL
-    pub settings_editing: bool, // Whether currently editing a field
+    pub settings_editing: bool, // Whether currently editing a text field
     pub settings_edit_buffer: String, // Buffer for editing text fields
+    pub settings_dropdown: bool, // Whether a dropdown list is open
+    pub settings_dropdown_selected: usize, // Selected index in the dropdown
 
     // LLM Settings
     pub llm_provider: LlmProvider,
@@ -509,6 +524,8 @@ impl AppState {
             settings_field: 0,
             settings_editing: false,
             settings_edit_buffer: String::new(),
+            settings_dropdown: false,
+            settings_dropdown_selected: 0,
             llm_provider: provider,
             llm_model: default_model,
             llm_api_key: String::new(),

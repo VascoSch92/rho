@@ -18,9 +18,19 @@ use crate::config::theme::{Theme, ThemeColors};
 /// Embedded default configuration — the single source of truth.
 const DEFAULT_CONFIG: &str = include_str!("../../config.toml");
 
+/// Persisted LLM settings (from config file).
+#[derive(Debug, Clone, Default)]
+pub struct LlmSettings {
+    pub model: Option<String>,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+}
+
 /// Top-level configuration (runtime, fully resolved).
 #[derive(Debug, Clone)]
 pub struct RhoConfig {
+    /// LLM settings from config (lowest priority — CLI/env override)
+    pub llm: LlmSettings,
     /// Name of the active theme
     pub theme_name: String,
     /// All available themes, resolved to runtime Theme
@@ -59,6 +69,8 @@ impl Default for RhoConfig {
 #[derive(Debug, Clone, Default, Deserialize)]
 struct RawConfig {
     #[serde(default)]
+    llm: RawLlmConfig,
+    #[serde(default)]
     theme: RawThemeConfig,
     #[serde(default)]
     spinner: RawSpinnerConfig,
@@ -68,6 +80,16 @@ struct RawConfig {
     keybindings: RawKeyBindingsConfig,
     #[serde(default)]
     scroll: RawScrollConfig,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+struct RawLlmConfig {
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    api_key: Option<String>,
+    #[serde(default)]
+    base_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -191,6 +213,24 @@ impl RhoConfig {
             }
         };
 
+        // ── LLM ──────────────────────────────────────────────────────────
+        let llm = {
+            let base = defaults.llm;
+            if let Some(ref u) = user {
+                LlmSettings {
+                    model: u.llm.model.clone().or(base.model),
+                    api_key: u.llm.api_key.clone().or(base.api_key),
+                    base_url: u.llm.base_url.clone().or(base.base_url),
+                }
+            } else {
+                LlmSettings {
+                    model: base.model,
+                    api_key: base.api_key,
+                    base_url: base.base_url,
+                }
+            }
+        };
+
         // ── Scroll ───────────────────────────────────────────────────────
         let scroll_lines = user
             .as_ref()
@@ -204,6 +244,7 @@ impl RhoConfig {
             .unwrap_or(10);
 
         Self {
+            llm,
             theme_name,
             themes,
             theme_names,
@@ -279,4 +320,45 @@ fn merge_keybindings(defaults: KeyBindingsConfig, user: KeyBindingsConfig) -> Ke
 /// Get the path to the config file: `~/.config/rho/config.toml`
 pub fn config_file_path() -> Option<PathBuf> {
     directories::ProjectDirs::from("", "", "rho").map(|dirs| dirs.config_dir().join("config.toml"))
+}
+
+/// Save LLM settings to the user config file using toml_edit for surgical writes.
+/// Creates the file and parent directories if they don't exist.
+pub fn save_llm(model: &str, api_key: &str, base_url: Option<&str>) -> Result<(), String> {
+    let path = config_file_path().ok_or("Could not determine config directory")?;
+
+    // Ensure parent directory exists
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create config directory: {}", e))?;
+    }
+
+    // Read existing file or start with empty document
+    let contents = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut doc = contents
+        .parse::<toml_edit::DocumentMut>()
+        .map_err(|e| format!("Failed to parse config file: {}", e))?;
+
+    // Ensure [llm] table exists
+    if !doc.contains_key("llm") {
+        doc["llm"] = toml_edit::Item::Table(toml_edit::Table::new());
+    }
+
+    // Update fields
+    doc["llm"]["model"] = toml_edit::value(model);
+    doc["llm"]["api_key"] = toml_edit::value(api_key);
+    match base_url {
+        Some(url) if !url.is_empty() => {
+            doc["llm"]["base_url"] = toml_edit::value(url);
+        }
+        _ => {
+            doc["llm"]["base_url"] = toml_edit::value("");
+        }
+    }
+
+    std::fs::write(&path, doc.to_string())
+        .map_err(|e| format!("Failed to write config file: {}", e))?;
+
+    tracing::info!("Saved LLM settings to {}", path.display());
+    Ok(())
 }

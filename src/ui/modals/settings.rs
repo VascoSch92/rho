@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use super::frame::render_modal;
-use crate::state::AppState;
+use crate::state::{AppState, LlmProvider};
 
 /// Number of settings fields
 pub const SETTINGS_FIELD_COUNT: usize = 4;
@@ -29,10 +29,10 @@ impl<'a> SettingsModal<'a> {
     fn mask_api_key(key: &str) -> String {
         if key.is_empty() {
             "(not set)".to_string()
-        } else if key.len() <= 8 {
+        } else if key.len() <= 4 {
             "*".repeat(key.len())
         } else {
-            format!("{}...{}", &key[..4], &key[key.len() - 4..])
+            format!("{}{}", &key[..4], "*".repeat(key.len().min(12) - 4))
         }
     }
 }
@@ -43,71 +43,93 @@ impl Widget for SettingsModal<'_> {
         let mut lines: Vec<Line> = Vec::new();
         let selected = self.state.settings_field;
         let editing = self.state.settings_editing;
+        let dropdown = self.state.settings_dropdown;
 
         lines.push(Line::from(""));
 
-        // Provider field (0)
+        // ── Provider field (0) ───────────────────────────────────────────
         let is_selected = selected == 0;
-        let label_style = if is_selected {
-            Style::default().fg(t.primary).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(t.muted)
-        };
-        let value_style = if is_selected && editing {
-            Style::default().fg(t.success).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(t.foreground)
-        };
+        let label_style = field_label_style(is_selected, t);
+        let value_style = Style::default().fg(t.foreground);
         lines.push(Line::from(vec![
-            Span::styled(if is_selected { " ▶ " } else { "   " }, label_style),
+            Span::styled(indicator(is_selected), label_style),
             Span::styled("Provider:  ", label_style),
             Span::styled(self.state.llm_provider.display_name(), value_style),
-            if is_selected && !editing {
-                Span::styled("  ←/→ to change", Style::default().fg(t.muted))
+            if is_selected && !dropdown {
+                Span::styled("  Enter to select", Style::default().fg(t.muted))
             } else {
                 Span::raw("")
             },
         ]));
 
+        // Provider dropdown
+        if is_selected && dropdown {
+            let providers = LlmProvider::all();
+            for (i, p) in providers.iter().enumerate() {
+                let is_dd_selected = i == self.state.settings_dropdown_selected;
+                let dd_style = if is_dd_selected {
+                    Style::default().fg(t.primary).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(t.foreground)
+                };
+                lines.push(Line::from(vec![
+                    Span::raw(if is_dd_selected {
+                        "     ▶ "
+                    } else {
+                        "       "
+                    }),
+                    Span::styled(p.display_name().to_string(), dd_style),
+                ]));
+            }
+        }
+
         lines.push(Line::from(""));
 
-        // Model field (1)
+        // ── Model field (1) ──────────────────────────────────────────────
         let is_selected = selected == 1;
-        let label_style = if is_selected {
-            Style::default().fg(t.primary).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(t.muted)
-        };
-        let value_style = if is_selected && editing {
-            Style::default().fg(t.success).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(t.foreground)
-        };
+        let label_style = field_label_style(is_selected, t);
         let model_display = if self.state.llm_model.is_empty() {
             "(select a model)"
         } else {
             &self.state.llm_model
         };
         lines.push(Line::from(vec![
-            Span::styled(if is_selected { " ▶ " } else { "   " }, label_style),
+            Span::styled(indicator(is_selected), label_style),
             Span::styled("Model:     ", label_style),
-            Span::styled(model_display, value_style),
-            if is_selected && !editing {
-                Span::styled("  ←/→ to change", Style::default().fg(t.muted))
+            Span::styled(model_display, Style::default().fg(t.foreground)),
+            if is_selected && !dropdown {
+                Span::styled("  Enter to select", Style::default().fg(t.muted))
             } else {
                 Span::raw("")
             },
         ]));
 
+        // Model dropdown
+        if is_selected && dropdown {
+            let models = self.state.llm_provider.models();
+            for (i, m) in models.iter().enumerate() {
+                let is_dd_selected = i == self.state.settings_dropdown_selected;
+                let dd_style = if is_dd_selected {
+                    Style::default().fg(t.primary).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(t.foreground)
+                };
+                lines.push(Line::from(vec![
+                    Span::raw(if is_dd_selected {
+                        "     ▶ "
+                    } else {
+                        "       "
+                    }),
+                    Span::styled(*m, dd_style),
+                ]));
+            }
+        }
+
         lines.push(Line::from(""));
 
-        // API Key field (2)
+        // ── API Key field (2) ────────────────────────────────────────────
         let is_selected = selected == 2;
-        let label_style = if is_selected {
-            Style::default().fg(t.primary).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(t.muted)
-        };
+        let label_style = field_label_style(is_selected, t);
         let key_display = if is_selected && editing {
             format!("{}_", &self.state.settings_edit_buffer)
         } else {
@@ -119,7 +141,7 @@ impl Widget for SettingsModal<'_> {
             Style::default().fg(t.foreground)
         };
         lines.push(Line::from(vec![
-            Span::styled(if is_selected { " ▶ " } else { "   " }, label_style),
+            Span::styled(indicator(is_selected), label_style),
             Span::styled("API Key:   ", label_style),
             Span::styled(key_display, value_style),
             if is_selected && !editing {
@@ -131,13 +153,9 @@ impl Widget for SettingsModal<'_> {
 
         lines.push(Line::from(""));
 
-        // Base URL field (3)
+        // ── Base URL field (3) ───────────────────────────────────────────
         let is_selected = selected == 3;
-        let label_style = if is_selected {
-            Style::default().fg(t.primary).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(t.muted)
-        };
+        let label_style = field_label_style(is_selected, t);
         let url_display = if is_selected && editing {
             format!("{}_", &self.state.settings_edit_buffer)
         } else {
@@ -152,7 +170,7 @@ impl Widget for SettingsModal<'_> {
             Style::default().fg(t.foreground)
         };
         lines.push(Line::from(vec![
-            Span::styled(if is_selected { " ▶ " } else { "   " }, label_style),
+            Span::styled(indicator(is_selected), label_style),
             Span::styled("Base URL:  ", label_style),
             Span::styled(url_display, value_style),
             if is_selected && !editing {
@@ -169,45 +187,51 @@ impl Widget for SettingsModal<'_> {
         )]));
         lines.push(Line::from(""));
 
-        lines.push(Line::from(vec![
-            Span::styled("   Models for ", Style::default().fg(t.muted)),
-            Span::styled(
-                self.state.llm_provider.display_name(),
-                Style::default().fg(t.accent),
-            ),
-            Span::styled(":", Style::default().fg(t.muted)),
-        ]));
-
-        let models = self.state.llm_provider.models();
-        let model_list: String = models
-            .iter()
-            .take(4)
-            .copied()
-            .collect::<Vec<_>>()
-            .join(", ");
-        let suffix = if models.len() > 4 {
-            format!(" (+{})", models.len() - 4)
+        // Help line
+        if dropdown {
+            lines.push(Line::from(vec![
+                Span::styled("   ↑/↓", Style::default().fg(t.primary)),
+                Span::styled(" navigate  ", Style::default().fg(t.muted)),
+                Span::styled("Enter", Style::default().fg(t.primary)),
+                Span::styled(" select  ", Style::default().fg(t.muted)),
+                Span::styled("Esc", Style::default().fg(t.primary)),
+                Span::styled(" cancel", Style::default().fg(t.muted)),
+            ]));
+        } else if editing {
+            lines.push(Line::from(vec![
+                Span::styled("   Type to edit  ", Style::default().fg(t.muted)),
+                Span::styled("Enter", Style::default().fg(t.primary)),
+                Span::styled(" save  ", Style::default().fg(t.muted)),
+                Span::styled("Esc", Style::default().fg(t.primary)),
+                Span::styled(" cancel", Style::default().fg(t.muted)),
+            ]));
         } else {
-            String::new()
-        };
-        lines.push(Line::from(vec![Span::styled(
-            format!("   {}{}", model_list, suffix),
-            Style::default().fg(t.muted),
-        )]));
-
-        lines.push(Line::from(""));
-
-        lines.push(Line::from(vec![
-            Span::styled("   ↑/↓", Style::default().fg(t.primary)),
-            Span::styled(" navigate  ", Style::default().fg(t.muted)),
-            Span::styled("←/→", Style::default().fg(t.primary)),
-            Span::styled(" change  ", Style::default().fg(t.muted)),
-            Span::styled("Enter", Style::default().fg(t.primary)),
-            Span::styled(" edit  ", Style::default().fg(t.muted)),
-            Span::styled("Esc", Style::default().fg(t.primary)),
-            Span::styled(" close", Style::default().fg(t.muted)),
-        ]));
+            lines.push(Line::from(vec![
+                Span::styled("   ↑/↓", Style::default().fg(t.primary)),
+                Span::styled(" navigate  ", Style::default().fg(t.muted)),
+                Span::styled("Enter", Style::default().fg(t.primary)),
+                Span::styled(" select/edit  ", Style::default().fg(t.muted)),
+                Span::styled("Esc", Style::default().fg(t.primary)),
+                Span::styled(" close & save", Style::default().fg(t.muted)),
+            ]));
+        }
 
         render_modal(area, buf, Self::TITLE, lines, t);
+    }
+}
+
+fn indicator(is_selected: bool) -> &'static str {
+    if is_selected {
+        " ▶ "
+    } else {
+        "   "
+    }
+}
+
+fn field_label_style(is_selected: bool, t: &crate::config::theme::Theme) -> Style {
+    if is_selected {
+        Style::default().fg(t.primary).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(t.muted)
     }
 }

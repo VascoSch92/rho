@@ -85,6 +85,17 @@ impl Widget for BottomStatusBar<'_> {
             spans.push(Span::styled(" | ", Style::default().fg(t.muted)));
         }
 
+        // Model name
+        spans.push(Span::styled(
+            format!(
+                "{}/{}",
+                self.state.llm_provider.provider_prefix(),
+                self.state.llm_model
+            ),
+            Style::default().fg(t.accent),
+        ));
+        spans.push(Span::styled(" | ", Style::default().fg(t.muted)));
+
         // Context usage bar
         let context_used = self.state.per_turn_tokens;
         let context_max = self.state.context_window;

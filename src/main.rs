@@ -214,6 +214,19 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     // CLI flags override config file
     config.theme_name = args.theme.clone();
 
+    // Extract LLM settings before moving config into AppState
+    let config_llm = config.llm.clone();
+
+    // Resolve LLM settings: CLI/env > config > defaults
+    let effective_model = if args.model != "anthropic/claude-sonnet-4-5-20250929" {
+        args.model.clone()
+    } else if let Some(ref m) = config_llm.model {
+        m.clone()
+    } else {
+        args.model.clone()
+    };
+    let effective_base_url = args.llm_base_url.clone().or(config_llm.base_url.clone());
+
     // Create application state from config
     let mut state = AppState::with_config(config);
     state.confirmation_policy = args.permission_mode;
@@ -231,25 +244,29 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
         .unwrap_or_else(|| ".".to_string());
     state.set_workspace(workspace_path);
 
-    // Parse model argument (format: "provider/model" or just "model")
-    let (provider, model) = cli::parse_model_arg(&args.model);
+    // Apply LLM settings to state
+    let (provider, model) = cli::parse_model_arg(&effective_model);
     state.llm_provider = provider;
     state.llm_model = model;
+    state.llm_base_url = effective_base_url.clone();
 
-    // Validate LLM API key is provided
+    // API key: CLI/env > config
     let llm_api_key = match &args.llm_api_key {
         Some(key) => {
             state.llm_api_key = key.clone();
             key.clone()
         }
-        None => {
-            error!("LLM_API_KEY is required. Set via --llm-api-key or LLM_API_KEY environment variable.");
-            return Err(anyhow::anyhow!("LLM_API_KEY is required"));
-        }
+        None => match &config_llm.api_key {
+            Some(key) if !key.is_empty() => {
+                state.llm_api_key = key.clone();
+                key.clone()
+            }
+            _ => {
+                error!("LLM_API_KEY is required. Set via --llm-api-key, LLM_API_KEY env, or config.toml.");
+                return Err(anyhow::anyhow!("LLM_API_KEY is required"));
+            }
+        },
     };
-
-    // Set base URL if provided
-    state.llm_base_url = args.llm_base_url.clone();
 
     // Create API client
     let client = AgentServerClient::new(&args.server, args.session_api_key.clone());
@@ -273,8 +290,8 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
     // Build LLM config for conversations
     let llm_config = {
-        let config = LLMConfig::new(&args.model, &llm_api_key);
-        if let Some(ref base_url) = args.llm_base_url {
+        let config = LLMConfig::new(&effective_model, &llm_api_key);
+        if let Some(ref base_url) = effective_base_url {
             config.with_base_url(base_url)
         } else {
             config

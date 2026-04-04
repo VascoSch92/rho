@@ -2,6 +2,15 @@
 # Copy this file to ~/.config/rho/config.toml to customise Rho.
 # All sections and keys are optional — defaults are used for anything omitted.
 
+# ── LLM ───────────────────────────────────────────────────────────────────────
+# LLM settings are persisted here when changed via /settings.
+# CLI flags and environment variables (LLM_MODEL, LLM_API_KEY, LLM_BASE_URL)
+# take priority over these values.
+[llm]
+# model = "anthropic/claude-sonnet-4-5-20250929"
+# api_key = ""
+# base_url = ""
+
 # ── Theme ─────────────────────────────────────────────────────────────────────
 [theme]
 # Active theme name (any key from [theme.themes.*] below)
