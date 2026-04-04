@@ -130,6 +130,10 @@ pub struct AppState {
 
 impl AppState {
     /// Create AppState with config applied.
+    ///
+    /// Loads theme, spinner, keybindings, scroll settings, and fun facts from
+    /// the provided `RhoConfig`. Other fields (LLM settings, workspace, etc.)
+    /// are set to defaults and should be overridden by the caller after construction.
     pub fn with_config(config: RhoConfig) -> Self {
         let provider = LlmProvider::Anthropic;
         let default_model = provider

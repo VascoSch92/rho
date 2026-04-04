@@ -126,7 +126,14 @@ impl ModeBindings {
 
 // ── Key string parsing ──────────────────────────────────────────────────────
 
-/// Parse a key string like "ctrl-q", "enter", "pageup", "f1" into a KeyEvent.
+/// Parse a human-readable key string into a crossterm `KeyEvent`.
+///
+/// Supported formats:
+/// - Simple keys: `"q"`, `"enter"`, `"esc"`, `"up"`, `"pageup"`, `"tab"`, `"space"`, `"f1"`..`"f12"`
+/// - With modifiers: `"ctrl-q"`, `"alt-enter"`, `"shift-a"`, `"ctrl-shift-x"`
+/// - Angle brackets (optional): `"<ctrl-q>"` is the same as `"ctrl-q"`
+///
+/// Case-insensitive. Returns `Err` for unrecognised keys.
 pub fn parse_key_event(raw: &str) -> Result<KeyEvent, String> {
     let raw_lower = raw.to_ascii_lowercase();
     // Strip angle brackets if present: "<ctrl-q>" -> "ctrl-q"

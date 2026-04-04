@@ -3,13 +3,34 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::Widget,
 };
 
 use super::frame::render_modal;
+use crate::config::theme::Theme;
 use crate::state::{AppState, ConfirmationPolicy};
+
+// ── Help line builders ──────────────────────────────────────────────────────
+
+/// Build a help line: "  key   description" with key in `key_color` and desc in `desc_color`.
+fn help_line(key: &str, desc: &str, key_color: Color, desc_color: Color) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(format!("  {:<13}", key), Style::default().fg(key_color)),
+        Span::styled(desc.to_string(), Style::default().fg(desc_color)),
+    ])
+}
+
+/// Horizontal separator line.
+fn separator(t: &Theme) -> Line<'static> {
+    Line::from(vec![Span::styled(
+        format!("  {}", "─".repeat(44)),
+        Style::default().fg(t.muted),
+    )])
+}
+
+// ── Help modal ──────────────────────────────────────────────────────────────
 
 /// Help modal showing available commands
 pub struct HelpModal<'a> {
@@ -24,6 +45,37 @@ impl<'a> HelpModal<'a> {
     }
 }
 
+/// Slash commands: (key, description)
+const COMMANDS: &[(&str, &str)] = &[
+    ("/help", "Show this help"),
+    ("/new", "Start a new conversation"),
+    ("/resume", "Resume a previous conversation"),
+    ("/usage", "Show token usage details"),
+    ("/settings", "Show current settings"),
+    ("/theme", "Change color theme"),
+    ("/confirm", "Show/change confirmation policy"),
+    ("/exit", "Exit the application"),
+];
+
+/// Keyboard shortcuts: (key, description)
+const SHORTCUTS: &[(&str, &str)] = &[("!<cmd>", "Run bash command (e.g. !ls, !pwd)")];
+
+/// Key bindings: (key, description)
+const KEYBINDINGS: &[(&str, &str)] = &[
+    ("Alt+Enter", "New line in input (or Shift+Enter)"),
+    ("Ctrl+Q", "Quit"),
+    ("↑↓ PgUp/Dn", "Scroll messages"),
+    ("Ctrl+E", "Expand/collapse all actions"),
+    ("Mouse wheel", "Scroll messages"),
+];
+
+/// Text selection modifiers: (terminal, key)
+const TEXT_SELECTION: &[(&str, &str)] = &[
+    ("macOS Terminal", "Fn"),
+    ("iTerm2", "Option / Cmd"),
+    ("Linux", "Shift"),
+];
+
 impl Widget for HelpModal<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let t = &self.state.theme;
@@ -31,119 +83,49 @@ impl Widget for HelpModal<'_> {
 
         lines.push(Line::from(""));
 
-        lines.push(Line::from(vec![
-            Span::styled("  /help      ", Style::default().fg(t.primary)),
-            Span::styled("Show this help", Style::default().fg(t.foreground)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("  /new       ", Style::default().fg(t.primary)),
-            Span::styled(
-                "Start a new conversation",
-                Style::default().fg(t.foreground),
-            ),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("  /resume    ", Style::default().fg(t.primary)),
-            Span::styled(
-                "Resume a previous conversation",
-                Style::default().fg(t.foreground),
-            ),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("  /usage     ", Style::default().fg(t.primary)),
-            Span::styled(
-                "Show token usage details",
-                Style::default().fg(t.foreground),
-            ),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("  /settings  ", Style::default().fg(t.primary)),
-            Span::styled("Show current settings", Style::default().fg(t.foreground)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("  /theme     ", Style::default().fg(t.primary)),
-            Span::styled("Change color theme", Style::default().fg(t.foreground)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("  /confirm   ", Style::default().fg(t.primary)),
-            Span::styled(
-                "Show/change confirmation policy",
-                Style::default().fg(t.foreground),
-            ),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("  /exit      ", Style::default().fg(t.primary)),
-            Span::styled("Exit the application", Style::default().fg(t.foreground)),
-        ]));
+        // Slash commands
+        for (key, desc) in COMMANDS {
+            lines.push(help_line(key, desc, t.primary, t.foreground));
+        }
 
         lines.push(Line::from(""));
 
-        lines.push(Line::from(vec![
-            Span::styled("  !<cmd>     ", Style::default().fg(t.primary)),
-            Span::styled(
-                "Run bash command (e.g. !ls, !pwd)",
-                Style::default().fg(t.foreground),
-            ),
-        ]));
+        // Shortcuts
+        for (key, desc) in SHORTCUTS {
+            lines.push(help_line(key, desc, t.primary, t.foreground));
+        }
 
         lines.push(Line::from(""));
+        lines.push(separator(t));
+        lines.push(Line::from(""));
+
+        // Key bindings
+        for (key, desc) in KEYBINDINGS {
+            lines.push(help_line(key, desc, t.accent, t.muted));
+        }
+
+        lines.push(Line::from(""));
+        lines.push(separator(t));
+        lines.push(Line::from(""));
+
+        // Text selection
         lines.push(Line::from(vec![Span::styled(
-            format!("  {}", "─".repeat(44)),
+            "  Text selection (hold modifier + click/drag):".to_string(),
             Style::default().fg(t.muted),
         )]));
         lines.push(Line::from(""));
-
-        lines.push(Line::from(vec![
-            Span::styled("  Alt+Enter  ", Style::default().fg(t.accent)),
-            Span::styled(
-                " New line in input (or Shift+Enter)",
-                Style::default().fg(t.muted),
-            ),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("  Ctrl+Q     ", Style::default().fg(t.accent)),
-            Span::styled(" Quit", Style::default().fg(t.muted)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("  ↑↓ PgUp/Dn ", Style::default().fg(t.accent)),
-            Span::styled(" Scroll messages", Style::default().fg(t.muted)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("  Ctrl+E     ", Style::default().fg(t.accent)),
-            Span::styled(" Expand/collapse all actions", Style::default().fg(t.muted)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("  Mouse wheel ", Style::default().fg(t.accent)),
-            Span::styled("Scroll messages", Style::default().fg(t.muted)),
-        ]));
-
-        lines.push(Line::from(""));
-        lines.push(Line::from(vec![Span::styled(
-            format!("  {}", "─".repeat(44)),
-            Style::default().fg(t.muted),
-        )]));
-        lines.push(Line::from(""));
-
-        lines.push(Line::from(vec![Span::styled(
-            "  Text selection (hold modifier + click/drag):",
-            Style::default().fg(t.muted),
-        )]));
-        lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            Span::styled("    macOS Terminal  ", Style::default().fg(t.accent)),
-            Span::styled("Fn", Style::default().fg(t.muted)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("    iTerm2         ", Style::default().fg(t.accent)),
-            Span::styled(" Option / Cmd", Style::default().fg(t.muted)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("    Linux          ", Style::default().fg(t.accent)),
-            Span::styled(" Shift", Style::default().fg(t.muted)),
-        ]));
+        for (terminal, key) in TEXT_SELECTION {
+            lines.push(help_line(
+                &format!("  {}", terminal),
+                key,
+                t.accent,
+                t.muted,
+            ));
+        }
 
         lines.push(Line::from(""));
 
+        // Close hint
         lines.push(Line::from(vec![
             Span::styled("  Press ", Style::default().fg(t.muted)),
             Span::styled("Esc", Style::default().fg(t.primary)),
@@ -155,6 +137,8 @@ impl Widget for HelpModal<'_> {
         render_modal(area, buf, Self::TITLE, lines, t);
     }
 }
+
+// ── Policy modal ────────────────────────────────────────────────────────────
 
 /// Policy modal — navigate with ↑/↓, Enter to apply, Esc to cancel
 pub struct PolicyModal<'a> {
@@ -175,10 +159,7 @@ const POLICIES: &[ConfirmationPolicy] = &[
     ConfirmationPolicy::NeverConfirm,
 ];
 
-fn policy_color(
-    policy: ConfirmationPolicy,
-    t: &crate::config::theme::Theme,
-) -> ratatui::style::Color {
+fn policy_color(policy: ConfirmationPolicy, t: &Theme) -> Color {
     match policy {
         ConfirmationPolicy::AlwaysConfirm => t.success,
         ConfirmationPolicy::ConfirmRisky => t.primary,

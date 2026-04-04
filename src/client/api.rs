@@ -254,10 +254,12 @@ impl AgentServerClient {
         Ok(HealthResponse {})
     }
 
-    /// Start a new conversation with agent configuration
+    /// Start a new conversation with agent configuration.
     ///
-    /// This is the primary way to create conversations with the Agent Server.
-    /// It requires full agent configuration including LLM settings.
+    /// POSTs to `/api/conversations` with the full agent config (LLM, tools,
+    /// workspace, initial message). Returns a `ConversationInfo` with the new
+    /// conversation ID and optional title. The caller should then connect a
+    /// WebSocket via `conversation_websocket_url()` to receive events.
     pub async fn start_conversation(
         &self,
         request: StartConversationRequest,

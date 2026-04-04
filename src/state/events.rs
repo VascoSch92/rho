@@ -7,7 +7,15 @@ use super::types::{ConfirmationPolicy, DisplayMessage, InputMode, MessageRole, P
 use super::AppState;
 
 impl AppState {
-    /// Process an incoming event
+    /// Process an incoming server event into state changes.
+    ///
+    /// Dispatches by event kind:
+    /// - `MessageEvent` → adds user/assistant/system messages (skips user msgs unless replaying)
+    /// - `ActionEvent` → adds tool call display, may trigger confirmation dialog
+    /// - `ObservationEvent` → marks the matching action as completed (checkmark)
+    /// - `AgentErrorEvent` → displays error with optional detail
+    /// - `ConversationStateUpdateEvent` → updates execution status, title, metrics
+    /// - `PauseEvent` / `SystemPromptEvent` / `Condensation` → system messages
     pub fn process_event(&mut self, event: Event) {
         match event {
             Event::MessageEvent(msg) => {

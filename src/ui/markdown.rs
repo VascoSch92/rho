@@ -10,7 +10,11 @@ use ratatui::{
 
 use crate::config::theme::Theme;
 
-/// Render markdown text to styled Lines
+/// Render markdown text to styled ratatui `Line`s.
+///
+/// Supports headings (H1–H6 with block prefixes), bold, italic, strikethrough,
+/// inline code, code blocks, lists (with nesting), links, blockquotes,
+/// horizontal rules, and tables (with box-drawing borders).
 pub fn render_markdown(text: &str, width: usize, theme: &Theme) -> Vec<Line<'static>> {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TABLES);
@@ -25,37 +29,55 @@ pub fn render_markdown(text: &str, width: usize, theme: &Theme) -> Vec<Line<'sta
     renderer.finish()
 }
 
+/// Inline style modifiers (bold, italic, strikethrough).
+#[derive(Default)]
+struct InlineStyle {
+    bold: bool,
+    italic: bool,
+    strikethrough: bool,
+}
+
+/// Link state (accumulates text while inside a link).
+#[derive(Default)]
+struct LinkState {
+    active: bool,
+    url: String,
+    text: String,
+}
+
+/// Table accumulator — collects rows and column widths until end of table.
+#[derive(Default)]
+struct TableState {
+    active: bool,
+    in_head: bool,
+    row: Vec<String>,
+    rows: Vec<Vec<String>>,
+    col_widths: Vec<usize>,
+    is_header: Vec<bool>,
+}
+
 struct MarkdownRenderer {
     lines: Vec<Line<'static>>,
     current_line: Vec<Span<'static>>,
     width: usize,
-
-    // Cached theme colors (Copy so we own them)
     t: Theme,
 
-    // Style state
-    bold: bool,
-    italic: bool,
-    strikethrough: bool,
+    // Inline style
+    style: InlineStyle,
 
-    // Block state
+    // Block context
     in_code_block: bool,
     code_block_content: String,
     in_list: bool,
     list_indent: usize,
     in_heading: Option<HeadingLevel>,
-    in_link: bool,
-    link_url: String,
-    link_text: String,
     in_blockquote: bool,
 
+    // Link state
+    link: LinkState,
+
     // Table state
-    in_table: bool,
-    in_table_head: bool,
-    table_row: Vec<String>,
-    table_rows: Vec<Vec<String>>,
-    table_col_widths: Vec<usize>,
-    table_is_header: Vec<bool>,
+    table: TableState,
 }
 
 impl MarkdownRenderer {
@@ -65,37 +87,28 @@ impl MarkdownRenderer {
             current_line: Vec::new(),
             width,
             t: *theme,
-            bold: false,
-            italic: false,
-            strikethrough: false,
+            style: InlineStyle::default(),
             in_code_block: false,
             code_block_content: String::new(),
             in_list: false,
             list_indent: 0,
             in_heading: None,
-            in_link: false,
-            link_url: String::new(),
-            link_text: String::new(),
             in_blockquote: false,
-            in_table: false,
-            in_table_head: false,
-            table_row: Vec::new(),
-            table_rows: Vec::new(),
-            table_col_widths: Vec::new(),
-            table_is_header: Vec::new(),
+            link: LinkState::default(),
+            table: TableState::default(),
         }
     }
 
     fn current_style(&self) -> Style {
         let mut style = Style::default().fg(self.t.foreground);
 
-        if self.bold {
+        if self.style.bold {
             style = style.add_modifier(Modifier::BOLD);
         }
-        if self.italic {
+        if self.style.italic {
             style = style.add_modifier(Modifier::ITALIC);
         }
-        if self.strikethrough {
+        if self.style.strikethrough {
             style = style.add_modifier(Modifier::CROSSED_OUT);
         }
         if self.in_heading.is_some() {
@@ -114,14 +127,14 @@ impl MarkdownRenderer {
             return;
         }
 
-        if self.in_link {
-            self.link_text.push_str(text);
+        if self.link.active {
+            self.link.text.push_str(text);
             return;
         }
 
-        if self.in_table {
+        if self.table.active {
             // Accumulate text into the current cell
-            if let Some(cell) = self.table_row.last_mut() {
+            if let Some(cell) = self.table.row.last_mut() {
                 cell.push_str(text);
             }
             return;
@@ -152,8 +165,8 @@ impl MarkdownRenderer {
             Event::End(tag) => self.end_tag(tag),
             Event::Text(text) => self.push_text(&text),
             Event::Code(code) => {
-                if self.in_table {
-                    if let Some(cell) = self.table_row.last_mut() {
+                if self.table.active {
+                    if let Some(cell) = self.table.row.last_mut() {
                         cell.push_str(&code);
                     }
                 } else {
@@ -164,8 +177,8 @@ impl MarkdownRenderer {
                 }
             }
             Event::SoftBreak => {
-                if self.in_table {
-                    if let Some(cell) = self.table_row.last_mut() {
+                if self.table.active {
+                    if let Some(cell) = self.table.row.last_mut() {
                         cell.push(' ');
                     }
                 } else {
@@ -240,35 +253,35 @@ impl MarkdownRenderer {
                 ));
             }
             Tag::Emphasis => {
-                self.italic = true;
+                self.style.italic = true;
             }
             Tag::Strong => {
-                self.bold = true;
+                self.style.bold = true;
             }
             Tag::Strikethrough => {
-                self.strikethrough = true;
+                self.style.strikethrough = true;
             }
             Tag::Link { dest_url, .. } => {
-                self.in_link = true;
-                self.link_url = dest_url.to_string();
-                self.link_text.clear();
+                self.link.active = true;
+                self.link.url = dest_url.to_string();
+                self.link.text.clear();
             }
             Tag::Table(_alignments) => {
                 self.flush_line();
-                self.in_table = true;
-                self.table_rows.clear();
-                self.table_col_widths.clear();
-                self.table_is_header.clear();
+                self.table.active = true;
+                self.table.rows.clear();
+                self.table.col_widths.clear();
+                self.table.is_header.clear();
             }
             Tag::TableHead => {
-                self.in_table_head = true;
-                self.table_row.clear();
+                self.table.in_head = true;
+                self.table.row.clear();
             }
             Tag::TableRow => {
-                self.table_row.clear();
+                self.table.row.clear();
             }
             Tag::TableCell => {
-                self.table_row.push(String::new());
+                self.table.row.push(String::new());
             }
             _ => {}
         }
@@ -315,69 +328,69 @@ impl MarkdownRenderer {
                 self.flush_line();
             }
             TagEnd::Emphasis => {
-                self.italic = false;
+                self.style.italic = false;
             }
             TagEnd::Strong => {
-                self.bold = false;
+                self.style.bold = false;
             }
             TagEnd::Strikethrough => {
-                self.strikethrough = false;
+                self.style.strikethrough = false;
             }
             TagEnd::Link => {
-                if self.in_table {
+                if self.table.active {
                     // Inside table: append link text to current cell
-                    if let Some(cell) = self.table_row.last_mut() {
-                        cell.push_str(&self.link_text);
+                    if let Some(cell) = self.table.row.last_mut() {
+                        cell.push_str(&self.link.text);
                     }
                 } else {
                     self.current_line.push(Span::styled(
-                        self.link_text.clone(),
+                        self.link.text.clone(),
                         Style::default()
                             .fg(self.t.accent)
                             .add_modifier(Modifier::UNDERLINED),
                     ));
                     self.current_line.push(Span::styled(
-                        format!(" ({})", self.link_url),
+                        format!(" ({})", self.link.url),
                         Style::default().fg(self.t.muted),
                     ));
                 }
-                self.in_link = false;
+                self.link.active = false;
             }
             TagEnd::TableHead => {
                 // Save header row
-                let row = std::mem::take(&mut self.table_row);
+                let row = std::mem::take(&mut self.table.row);
                 // Update column widths
                 for (i, cell) in row.iter().enumerate() {
                     let w = cell.chars().count();
-                    if i >= self.table_col_widths.len() {
-                        self.table_col_widths.push(w);
-                    } else if w > self.table_col_widths[i] {
-                        self.table_col_widths[i] = w;
+                    if i >= self.table.col_widths.len() {
+                        self.table.col_widths.push(w);
+                    } else if w > self.table.col_widths[i] {
+                        self.table.col_widths[i] = w;
                     }
                 }
-                self.table_rows.push(row);
-                self.table_is_header.push(true);
-                self.in_table_head = false;
+                self.table.rows.push(row);
+                self.table.is_header.push(true);
+                self.table.in_head = false;
             }
             TagEnd::TableRow => {
-                let row = std::mem::take(&mut self.table_row);
+                let row = std::mem::take(&mut self.table.row);
                 for (i, cell) in row.iter().enumerate() {
                     let w = cell.chars().count();
-                    if i >= self.table_col_widths.len() {
-                        self.table_col_widths.push(w);
-                    } else if w > self.table_col_widths[i] {
-                        self.table_col_widths[i] = w;
+                    if i >= self.table.col_widths.len() {
+                        self.table.col_widths.push(w);
+                    } else if w > self.table.col_widths[i] {
+                        self.table.col_widths[i] = w;
                     }
                 }
-                self.table_rows.push(row);
-                self.table_is_header.push(false);
+                self.table.rows.push(row);
+                self.table.is_header.push(false);
             }
             TagEnd::TableCell => {
                 // Cell text already accumulated via push_text
             }
             TagEnd::Table => {
                 self.render_table();
-                self.in_table = false;
+                self.table.active = false;
                 self.lines.push(Line::from(""));
             }
             _ => {}
@@ -386,11 +399,11 @@ impl MarkdownRenderer {
 
     /// Render the accumulated table rows into styled lines.
     fn render_table(&mut self) {
-        if self.table_rows.is_empty() {
+        if self.table.rows.is_empty() {
             return;
         }
 
-        let col_widths = &self.table_col_widths;
+        let col_widths = &self.table.col_widths;
         let border_style = Style::default().fg(self.t.muted);
         let header_style = Style::default()
             .fg(self.t.primary)
@@ -409,9 +422,9 @@ impl MarkdownRenderer {
         self.lines
             .push(Line::from(vec![Span::styled(top, border_style)]));
 
-        let total_rows = self.table_rows.len();
-        for (row_idx, row) in self.table_rows.iter().enumerate() {
-            let is_header = self.table_is_header.get(row_idx).copied().unwrap_or(false);
+        let total_rows = self.table.rows.len();
+        for (row_idx, row) in self.table.rows.iter().enumerate() {
+            let is_header = self.table.is_header.get(row_idx).copied().unwrap_or(false);
             let is_last = row_idx == total_rows - 1;
             let style = if is_header { header_style } else { cell_style };
 
