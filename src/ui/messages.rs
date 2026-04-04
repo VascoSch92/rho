@@ -44,147 +44,6 @@ impl<'a> MessageListWidget<'a> {
         }
     }
 
-    /// Format tool content nicely for expanded view
-    fn format_tool_content(content: &str, width: usize, t: &Theme) -> Vec<Line<'static>> {
-        let mut lines = Vec::new();
-
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(content) {
-            if let Some(obj) = json.as_object() {
-                for (key, value) in obj {
-                    let key_line = Line::from(vec![
-                        Span::raw("   "),
-                        Span::styled(
-                            format!("{}:", key),
-                            Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
-                        ),
-                    ]);
-                    lines.push(key_line);
-
-                    let value_lines = Self::format_json_value(value, width.saturating_sub(6), 6, t);
-                    lines.extend(value_lines);
-                }
-            } else {
-                let value_lines = Self::format_json_value(&json, width.saturating_sub(4), 4, t);
-                lines.extend(value_lines);
-            }
-        } else {
-            let wrapped = wrap(content, width);
-            for line in wrapped {
-                lines.push(Line::from(vec![
-                    Span::raw("   "),
-                    Span::raw(line.to_string()),
-                ]));
-            }
-        }
-
-        lines
-    }
-
-    /// Format a JSON value with proper indentation
-    fn format_json_value(
-        value: &serde_json::Value,
-        width: usize,
-        indent: usize,
-        t: &Theme,
-    ) -> Vec<Line<'static>> {
-        let mut lines = Vec::new();
-        let indent_str = " ".repeat(indent);
-
-        match value {
-            serde_json::Value::String(s) => {
-                if s.len() > width {
-                    let wrapped = wrap(s, width);
-                    for line in wrapped {
-                        lines.push(Line::from(vec![
-                            Span::raw(indent_str.clone()),
-                            Span::styled(line.to_string(), Style::default().fg(t.foreground)),
-                        ]));
-                    }
-                } else {
-                    lines.push(Line::from(vec![
-                        Span::raw(indent_str),
-                        Span::styled(s.clone(), Style::default().fg(t.foreground)),
-                    ]));
-                }
-            }
-            serde_json::Value::Number(n) => {
-                lines.push(Line::from(vec![
-                    Span::raw(indent_str),
-                    Span::styled(n.to_string(), Style::default().fg(t.primary)),
-                ]));
-            }
-            serde_json::Value::Bool(b) => {
-                lines.push(Line::from(vec![
-                    Span::raw(indent_str),
-                    Span::styled(b.to_string(), Style::default().fg(t.primary)),
-                ]));
-            }
-            serde_json::Value::Null => {
-                lines.push(Line::from(vec![
-                    Span::raw(indent_str),
-                    Span::styled("null", Style::default().fg(t.muted)),
-                ]));
-            }
-            serde_json::Value::Array(arr) => {
-                for (i, item) in arr.iter().enumerate() {
-                    lines.push(Line::from(vec![
-                        Span::raw(indent_str.clone()),
-                        Span::styled(format!("[{}]", i), Style::default().fg(t.muted)),
-                    ]));
-                    let item_lines =
-                        Self::format_json_value(item, width.saturating_sub(2), indent + 2, t);
-                    lines.extend(item_lines);
-                }
-            }
-            serde_json::Value::Object(obj) => {
-                for (key, val) in obj {
-                    lines.push(Line::from(vec![
-                        Span::raw(indent_str.clone()),
-                        Span::styled(format!("{}: ", key), Style::default().fg(t.accent)),
-                    ]));
-
-                    match val {
-                        serde_json::Value::String(s) if s.len() < width / 2 => {
-                            if let Some(last) = lines.last_mut() {
-                                last.spans.push(Span::styled(
-                                    s.clone(),
-                                    Style::default().fg(t.foreground),
-                                ));
-                            }
-                        }
-                        serde_json::Value::Number(n) => {
-                            if let Some(last) = lines.last_mut() {
-                                last.spans.push(Span::styled(
-                                    n.to_string(),
-                                    Style::default().fg(t.primary),
-                                ));
-                            }
-                        }
-                        serde_json::Value::Bool(b) => {
-                            if let Some(last) = lines.last_mut() {
-                                last.spans.push(Span::styled(
-                                    b.to_string(),
-                                    Style::default().fg(t.primary),
-                                ));
-                            }
-                        }
-                        _ => {
-                            let val_lines = Self::format_json_value(
-                                val,
-                                width.saturating_sub(2),
-                                indent + 2,
-                                t,
-                            );
-                            lines.extend(val_lines);
-                        }
-                    }
-                }
-            }
-        }
-
-        lines
-    }
-
     /// Format a group of consecutive Action messages into bordered boxes.
     /// Actions are split into sub-groups (batches) whenever an action carries
     /// a `thought` — the thought text is displayed between batches.
@@ -226,78 +85,87 @@ impl<'a> MessageListWidget<'a> {
                 lines.push(Line::from(""));
             }
 
-            // Batch header: ┌─ [ Tool calls: N ] with background
+            // Check if entire group is collapsed (all actions have collapsed=true)
+            let group_collapsed = group.iter().all(|m| m.collapsed);
             let badge_style = Style::default().fg(t.foreground).bg(t.border);
-            lines.push(Line::from(vec![
-                Span::styled("┌─ ", Style::default().fg(t.accent)),
-                Span::styled("[ ", badge_style),
-                Span::styled(format!("Tool calls: {}", group.len()), badge_style),
-                Span::styled(" ]", badge_style),
-            ]));
 
-            // Each tool call in this batch
-            for msg in group {
-                let mut header_spans = vec![Span::styled("├─ ", Style::default().fg(t.accent))];
+            if group_collapsed {
+                // Collapsed: badge + hint
+                lines.push(Line::from(vec![
+                    Span::styled("┌─ ", Style::default().fg(t.accent)),
+                    Span::styled("[ ", badge_style),
+                    Span::styled(format!("Tool calls: {}", group.len()), badge_style),
+                    Span::styled(" ]", badge_style),
+                ]));
+                lines.push(Line::from(vec![
+                    Span::styled("│ ", Style::default().fg(t.accent)),
+                    Span::styled("...", Style::default().fg(t.muted)),
+                ]));
+                lines.push(Line::from(vec![Span::styled(
+                    "└─",
+                    Style::default().fg(t.accent),
+                )]));
+            } else {
+                // Expanded: header + all tool entries
+                lines.push(Line::from(vec![
+                    Span::styled("┌─ ", Style::default().fg(t.accent)),
+                    Span::styled("[ ", badge_style),
+                    Span::styled(format!("Tool calls: {}", group.len()), badge_style),
+                    Span::styled(" ]", badge_style),
+                ]));
 
-                if msg.accepted {
-                    header_spans.push(Span::styled("✓ ", Style::default().fg(t.success)));
-                }
+                for msg in group {
+                    let mut header_spans = vec![Span::styled("├─ ", Style::default().fg(t.accent))];
 
-                let tool_name = msg.tool_name.as_deref().unwrap_or("Action");
-                header_spans.push(Span::styled(
-                    tool_name.to_string(),
-                    Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
-                ));
+                    if msg.accepted {
+                        header_spans.push(Span::styled("✓ ", Style::default().fg(t.success)));
+                    }
 
-                if let Some(risk) = msg.security_risk {
-                    if risk != SecurityRisk::Unknown {
-                        header_spans.push(Span::raw(" "));
-                        header_spans.push(Span::styled(
-                            format!("{}", risk),
-                            Self::security_risk_style(risk, t),
-                        ));
+                    let tool_name = msg.tool_name.as_deref().unwrap_or("Action");
+                    header_spans.push(Span::styled(
+                        tool_name.to_string(),
+                        Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
+                    ));
+
+                    if let Some(risk) = msg.security_risk {
+                        if risk != SecurityRisk::Unknown {
+                            header_spans.push(Span::raw(" "));
+                            header_spans.push(Span::styled(
+                                format!("{}", risk),
+                                Self::security_risk_style(risk, t),
+                            ));
+                        }
+                    }
+
+                    lines.push(Line::from(header_spans));
+
+                    // Content format: "args_display\nsummary"
+                    let (args_line, summary_line) =
+                        msg.content.split_once('\n').unwrap_or((&msg.content, ""));
+
+                    if !args_line.is_empty() {
+                        lines.push(Line::from(vec![
+                            Span::styled("│ ", Style::default().fg(t.accent)),
+                            Span::styled(args_line.to_string(), Style::default().fg(t.foreground)),
+                        ]));
+                    }
+                    if !summary_line.is_empty() {
+                        lines.push(Line::from(vec![
+                            Span::styled("│ ", Style::default().fg(t.accent)),
+                            Span::styled(
+                                summary_line.to_string(),
+                                Style::default().fg(t.muted).add_modifier(Modifier::ITALIC),
+                            ),
+                        ]));
                     }
                 }
 
-                lines.push(Line::from(header_spans));
-
-                // Content format: "args_display\nsummary"
-                let (args_line, summary_line) =
-                    msg.content.split_once('\n').unwrap_or((&msg.content, ""));
-
-                if !args_line.is_empty() {
-                    lines.push(Line::from(vec![
-                        Span::styled("│ ", Style::default().fg(t.accent)),
-                        Span::styled(args_line.to_string(), Style::default().fg(t.foreground)),
-                    ]));
-                }
-                if !summary_line.is_empty() {
-                    lines.push(Line::from(vec![
-                        Span::styled("│ ", Style::default().fg(t.accent)),
-                        Span::styled(
-                            summary_line.to_string(),
-                            Style::default().fg(t.muted).add_modifier(Modifier::ITALIC),
-                        ),
-                    ]));
-                }
-
-                // Expanded: show full tool content
-                if !msg.collapsed {
-                    let formatted_lines =
-                        Self::format_tool_content(&msg.content, width.saturating_sub(4), t);
-                    for formatted_line in formatted_lines {
-                        let mut new_spans = vec![Span::styled("│ ", Style::default().fg(t.accent))];
-                        new_spans.extend(formatted_line.spans);
-                        lines.push(Line::from(new_spans));
-                    }
-                }
+                // Batch footer
+                lines.push(Line::from(vec![Span::styled(
+                    "└─",
+                    Style::default().fg(t.accent),
+                )]));
             }
-
-            // Batch footer
-            lines.push(Line::from(vec![Span::styled(
-                "└─",
-                Style::default().fg(t.accent),
-            )]));
         }
 
         lines.push(Line::from(""));
