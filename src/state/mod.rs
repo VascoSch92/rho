@@ -383,7 +383,6 @@ pub struct AppState {
 
     // Replay flag — true while replaying stored events on resume
     pub replaying: bool,
-
     // Exit flag
     pub should_exit: bool,
     pub exit_confirmation_pending: bool,

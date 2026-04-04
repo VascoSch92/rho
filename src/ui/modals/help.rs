@@ -96,21 +96,50 @@ impl Widget for HelpModal<'_> {
         lines.push(Line::from(vec![
             Span::styled("  Alt+Enter  ", Style::default().fg(t.accent)),
             Span::styled(
-                "New line in input (or Shift+Enter)",
+                " New line in input (or Shift+Enter)",
                 Style::default().fg(t.muted),
             ),
         ]));
         lines.push(Line::from(vec![
             Span::styled("  Ctrl+Q     ", Style::default().fg(t.accent)),
-            Span::styled("Quit", Style::default().fg(t.muted)),
+            Span::styled(" Quit", Style::default().fg(t.muted)),
         ]));
         lines.push(Line::from(vec![
             Span::styled("  ↑↓ PgUp/Dn ", Style::default().fg(t.accent)),
-            Span::styled("Scroll messages", Style::default().fg(t.muted)),
+            Span::styled(" Scroll messages", Style::default().fg(t.muted)),
         ]));
         lines.push(Line::from(vec![
             Span::styled("  Ctrl+E     ", Style::default().fg(t.accent)),
-            Span::styled("Expand/collapse all actions", Style::default().fg(t.muted)),
+            Span::styled(" Expand/collapse all actions", Style::default().fg(t.muted)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("  Mouse wheel ", Style::default().fg(t.accent)),
+            Span::styled("Scroll messages", Style::default().fg(t.muted)),
+        ]));
+
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![Span::styled(
+            format!("  {}", "─".repeat(44)),
+            Style::default().fg(t.muted),
+        )]));
+        lines.push(Line::from(""));
+
+        lines.push(Line::from(vec![Span::styled(
+            "  Text selection (hold modifier + click/drag):",
+            Style::default().fg(t.muted),
+        )]));
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::styled("    macOS Terminal  ", Style::default().fg(t.accent)),
+            Span::styled("Fn", Style::default().fg(t.muted)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("    iTerm2         ", Style::default().fg(t.accent)),
+            Span::styled(" Option / Cmd", Style::default().fg(t.muted)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("    Linux          ", Style::default().fg(t.accent)),
+            Span::styled(" Shift", Style::default().fg(t.muted)),
         ]));
 
         lines.push(Line::from(""));

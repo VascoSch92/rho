@@ -191,17 +191,16 @@ fn print_goodbye(conversation_id: Option<uuid::Uuid>) {
 
 async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     // Setup terminal
-    // Note: We DON'T enable mouse capture so users can select/copy text with mouse
-    // Use keyboard (arrows, Page Up/Down) for scrolling instead
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    // Enter alternate screen and clear scrollback buffer so mouse scroll doesn't show
-    // previous terminal output
+    // Enter alternate screen, clear scrollback, enable mouse capture for scroll wheel.
+    // Hold modifier key (Ctrl/Shift/Cmd depending on terminal) to select text.
     execute!(
         stdout,
         EnterAlternateScreen,
         Clear(ClearType::All),
-        Clear(ClearType::Purge) // Clear scrollback buffer
+        Clear(ClearType::Purge),
+        crossterm::event::EnableMouseCapture,
     )?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -414,9 +413,16 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
                         }
                     }
                 }
-                Event::Mouse(_) => {
-                    // Mouse capture is disabled to allow text selection/copy
-                    // Use keyboard (arrows, Page Up/Down) for scrolling
+                Event::Mouse(mouse) => {
+                    match mouse.kind {
+                        crossterm::event::MouseEventKind::ScrollUp => {
+                            state.scroll_up(state.scroll_lines);
+                        }
+                        crossterm::event::MouseEventKind::ScrollDown => {
+                            state.scroll_down(state.scroll_lines);
+                        }
+                        _ => {} // Ignore other mouse events
+                    }
                 }
                 _ => {} // Ignore other events
             }
@@ -499,7 +505,11 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
     // Restore terminal
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(
+        terminal.backend_mut(),
+        crossterm::event::DisableMouseCapture,
+        LeaveAlternateScreen,
+    )?;
     terminal.show_cursor()?;
 
     print_goodbye(state.conversation_id);
