@@ -18,6 +18,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("usage", "Show token usage"),
     ("settings", "Show current settings"),
     ("theme", "Change color theme"),
+    ("rename", "Rename the conversation"),
     ("confirm", "Change confirmation policy"),
     ("exit", "Exit the application"),
 ];

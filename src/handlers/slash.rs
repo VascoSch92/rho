@@ -75,6 +75,22 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
                 None
             }
         }
+        Some("rename") => {
+            let new_name = parts[1..].join(" ");
+            if new_name.is_empty() {
+                state.add_message(DisplayMessage::error(
+                    "Usage: /rename <new name>",
+                ));
+                None
+            } else if state.conversation_id.is_none() {
+                state.add_message(DisplayMessage::error(
+                    "No active conversation to rename.",
+                ));
+                None
+            } else {
+                Some(AppCommand::RenameConversation(new_name))
+            }
+        }
         Some("exit") | Some("quit") => {
             state.exit_confirmation_pending = true;
             None

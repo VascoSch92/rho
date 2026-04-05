@@ -25,6 +25,7 @@ pub enum AppCommand {
     ConfirmAll,
     ConfirmDefer,
     SetPolicy(ConfirmationPolicy),
+    RenameConversation(String),
     ForceQuit,
     CancelQuit,
 }

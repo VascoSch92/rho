@@ -53,6 +53,7 @@ const COMMANDS: &[(&str, &str)] = &[
     ("/usage", "Show token usage details"),
     ("/settings", "Show current settings"),
     ("/theme", "Change color theme"),
+    ("/rename", "Rename the current conversation"),
     ("/confirm", "Show/change confirmation policy"),
     ("/exit", "Exit the application"),
 ];

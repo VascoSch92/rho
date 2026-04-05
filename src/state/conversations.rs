@@ -126,6 +126,31 @@ pub fn load_events(id: &str) -> Vec<Event> {
     events
 }
 
+/// Update the title in a conversation's meta.json.
+pub fn update_title(id: &str, new_title: &str) -> Result<(), String> {
+    let meta_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(".rho/conversations")
+        .join(id)
+        .join("meta.json");
+
+    if !meta_path.exists() {
+        return Err("meta.json not found".into());
+    }
+
+    let contents =
+        std::fs::read_to_string(&meta_path).map_err(|e| format!("Failed to read: {}", e))?;
+    let mut value: serde_json::Value =
+        serde_json::from_str(&contents).map_err(|e| format!("Failed to parse: {}", e))?;
+
+    value["title"] = serde_json::Value::String(new_title.to_string());
+
+    let updated =
+        serde_json::to_string_pretty(&value).map_err(|e| format!("Failed to serialize: {}", e))?;
+    std::fs::write(&meta_path, updated).map_err(|e| format!("Failed to write: {}", e))?;
+
+    Ok(())
+}
+
 /// Delete a conversation directory from .rho/conversations/.
 pub fn delete_conversation(id: &str) -> Result<(), String> {
     let conv_dir = Path::new(env!("CARGO_MANIFEST_DIR"))

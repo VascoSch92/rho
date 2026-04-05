@@ -309,6 +309,25 @@ pub async fn process_command(
             ));
         }
 
+        AppCommand::RenameConversation(new_name) => {
+            state.conversation_title = Some(new_name.clone());
+
+            // Persist to meta.json so /resume shows the new title
+            if let Some(conv_id) = state.conversation_id {
+                let id_str = conv_id.as_simple().to_string();
+                if let Err(e) =
+                    crate::state::conversations::update_title(&id_str, &new_name)
+                {
+                    warn!("Failed to persist title: {}", e);
+                }
+            }
+
+            state.notify(Notification::info(
+                "Renamed",
+                format!("Conversation renamed to \"{}\"", new_name),
+            ));
+        }
+
         AppCommand::SetPolicy(policy) => {
             state.confirmation_policy = policy;
             state.notify(Notification::info(
