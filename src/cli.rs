@@ -37,6 +37,7 @@ const HELP_TEMPLATE: &str = "\
 #[command(about = "Terminal UI for OpenHands Agent Server")]
 #[command(styles = STYLES)]
 #[command(help_template = HELP_TEMPLATE)]
+#[command(disable_help_subcommand = true)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,
@@ -49,6 +50,7 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Command {
     /// Launch a web server that serves the TUI in a browser via xterm.js
+    #[command(version, help_template = HELP_TEMPLATE)]
     Web(WebArgs),
 }
 
