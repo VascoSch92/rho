@@ -7,6 +7,7 @@ mod client;
 mod config;
 mod events;
 mod handlers;
+mod headless;
 mod state;
 mod ui;
 mod web;
@@ -46,9 +47,16 @@ fn ensure_rho_dir() -> std::path::PathBuf {
 async fn main() -> Result<()> {
     let cli = <Cli as clap::Parser>::parse();
 
-    // Dispatch to web server if `rho web` subcommand was used
-    if let Some(cli::Command::Web(web_args)) = cli.command {
-        return web::run_web_server(&web_args).await;
+    // Dispatch to subcommands
+    match cli.command {
+        Some(cli::Command::Web(ref web_args)) => {
+            return web::run_web_server(web_args).await;
+        }
+        Some(cli::Command::Headless(ref headless_args)) => {
+            let code = headless::run_headless(headless_args).await?;
+            std::process::exit(code);
+        }
+        None => {}
     }
 
     let args = cli.tui;

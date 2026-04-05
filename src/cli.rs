@@ -52,6 +52,10 @@ pub enum Command {
     /// Launch a web server that serves the TUI in a browser via xterm.js
     #[command(version, help_template = HELP_TEMPLATE)]
     Web(WebArgs),
+
+    /// Run a task headlessly (no TUI) — useful for scripting and CI/CD
+    #[command(version, help_template = HELP_TEMPLATE)]
+    Headless(HeadlessArgs),
 }
 
 #[derive(clap::Args, Debug)]
@@ -63,6 +67,58 @@ pub struct WebArgs {
     /// Port for the web server
     #[arg(long, default_value_t = 12000)]
     pub port: u16,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct HeadlessArgs {
+    /// Task to execute (inline)
+    #[arg(short, long, conflicts_with = "file")]
+    pub task: Option<String>,
+
+    /// Read task from a file
+    #[arg(short, long, conflicts_with = "task")]
+    pub file: Option<std::path::PathBuf>,
+
+    /// Output format: JSON Lines for machine consumption
+    #[arg(long)]
+    pub json: bool,
+
+    /// Timeout in seconds (0 = no timeout)
+    #[arg(long, default_value_t = 0)]
+    pub timeout: u64,
+
+    /// Agent Server URL
+    #[arg(short, long, default_value = "http://127.0.0.1:8000")]
+    pub server: String,
+
+    /// Session API key for authentication
+    #[arg(long, env = "OPENHANDS_SESSION_API_KEY")]
+    pub session_api_key: Option<String>,
+
+    /// LLM model name
+    #[arg(
+        short,
+        long,
+        env = "LLM_MODEL",
+        default_value = "anthropic/claude-sonnet-4-5-20250929"
+    )]
+    pub model: String,
+
+    /// LLM API key
+    #[arg(long, env = "LLM_API_KEY")]
+    pub llm_api_key: Option<String>,
+
+    /// LLM base URL (optional, for custom endpoints)
+    #[arg(long, env = "LLM_BASE_URL")]
+    pub llm_base_url: Option<String>,
+
+    /// Working directory for the agent
+    #[arg(short, long)]
+    pub workspace: Option<String>,
+
+    /// Auto-approve all actions (no confirmation prompts)
+    #[arg(long)]
+    pub auto_approve: bool,
 }
 
 /// Rho TUI arguments (default mode)

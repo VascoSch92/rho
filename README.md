@@ -70,6 +70,24 @@ Web mode (`rho web`):
 │  │  PTY  ←→  spawns `rho` TUI as subprocess           │     │
 │  └─────────────────────────────────────────────────────┘     │
 └──────────────────────────────────────────────────────────────┘
+
+Headless mode (`rho headless`):
+
+┌──────────────────────────────────────────────────────────────┐
+│                   rho headless                               │
+│  ┌─────────────┐    ┌──────────────────────────────────┐     │
+│  │  CLI Args   │───►│        HeadlessRunner            │     │
+│  │  (cli.rs)   │    │  - Start conversation            │     │
+│  └─────────────┘    │  - Stream events via WebSocket   │     │
+│                     │  - Print to stdout (text / JSON)  │     │
+│                     └──────────────┬───────────────────┘     │
+│                                    │ HTTP/WebSocket          │
+└────────────────────────────────────┼─────────────────────────┘
+                                     ▼
+                       ┌─────────────────────────┐
+                       │    Agent Server          │
+                       │  (existing, unchanged)   │
+                       └─────────────────────────┘
 ```
 
 ## Features
@@ -82,6 +100,7 @@ Web mode (`rho web`):
 - **Status indicators** for connection, execution status, and token usage
 - **Themes** via `--theme` or `/theme`
 - **Web mode** — access the TUI from a browser via `rho web`
+- **Headless mode** — run tasks without the TUI via `rho headless`, with JSON output for scripting
 
 ## Prerequisites
 
@@ -149,6 +168,26 @@ cargo run -- web --host 0.0.0.0 --port 8080
 ```
 
 Open the printed URL in your browser. Each browser tab gets its own independent session. Environment variables (`LLM_API_KEY`, etc.) are forwarded to each session automatically.
+
+### Headless mode (scripting / CI)
+
+Run a task without the TUI — output goes to stdout/stderr:
+
+```bash
+# Inline task
+rho headless --task "Fix the bug in main.py"
+
+# Task from file
+rho headless --file task.txt
+
+# JSON Lines output for machine consumption
+rho headless --json --task "Write tests" | jq '.type'
+
+# With timeout and auto-approve (for CI/CD)
+rho headless --task "Run linting" --timeout 300 --auto-approve
+```
+
+Exit codes: `0` success, `1` task error, `2` timeout, `3` connection error.
 
 ### Common options
 
@@ -242,6 +281,7 @@ src/
 ├── state/               # App state + message models
 ├── ui/                  # Ratatui UI (widgets, modals, markdown rendering)
 ├── config/              # Theme definitions
+├── headless/            # Headless runner (no TUI, stdout output)
 └── web/                 # Web server (axum + PTY + xterm.js frontend)
 web/
 └── index.html           # xterm.js frontend (embedded at compile time)
