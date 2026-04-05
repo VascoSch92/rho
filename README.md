@@ -2,19 +2,11 @@
 
 A terminal UI for OpenHands, built with [Ratatui](https://ratatui.rs/), that connects to the [OpenHands Agent Server](https://docs.openhands.dev/sdk/guides/agent-server/overview).
 
-Rho can **optionally launch a local Agent Server automatically** if you’ve set up the repo’s Python `.venv` (see Quickstart). Otherwise, it will just connect to whatever `--server` you provide.
+Rho can **automatically launch a local Agent Server** if the `dist/openhands-agent-server` binary is present. Otherwise, it connects to whatever `--server` you provide.
 
-## Quickstart (embedded Agent Server)
+## Quickstart
 
-### 1) Install the Python Agent Server into `.venv`
-
-This repo uses [`uv`](https://docs.astral.sh/uv/) and `pyproject.toml` to install `openhands-agent-server` locally.
-
-```bash
-make build
-```
-
-### 2) Provide an LLM API key (required)
+### 1) Provide an LLM API key (required)
 
 Rho must send an LLM configuration to the Agent Server when starting conversations.
 
@@ -23,13 +15,13 @@ export LLM_API_KEY="..."              # required
 export LLM_MODEL="openai/gpt-4o"      # optional (default is an Anthropic model)
 ```
 
-### 3) Run
+### 2) Run
 
 ```bash
 cargo run
 ```
 
-If you pass `--debug`, logs are written to `.rho/rho.log`.
+If `dist/openhands-agent-server` exists, Rho will launch it automatically. If you pass `--debug`, logs are written to `.rho/rho.log`.
 
 ## Architecture
 
@@ -48,7 +40,7 @@ If you pass `--debug`, logs are written to `.rho/rho.log`.
                             │ HTTP/WebSocket
                             ▼
 ┌──────────────────────────────────────────────────────────────┐
-│              Agent Server (Python)                           │
+│            Agent Server (dist/openhands-agent-server)        │
 │  ┌─────────────────────────────────────────────────────┐     │
 │  │  OpenHands SDK: Conversation, Tools, Events         │     │
 │  └─────────────────────────────────────────────────────┘     │
@@ -94,7 +86,7 @@ Headless mode (`rho headless`):
 
 - **Real-time event streaming** via WebSocket
 - **Action confirmation** policies: always / only-risky / never
-- **Slash commands** (`/help`, `/new`, `/settings`, `/theme`, …)
+- **Slash commands** (`/help`, `/new`, `/settings`, `/theme`, `/rename`, …)
 - **Local shell shortcuts**: run a command by typing `!<cmd>` (e.g. `!ls`)
 - **Collapsible actions** + `Ctrl+E` expand/collapse all
 - **Status indicators** for connection, execution status, and token usage
@@ -105,7 +97,7 @@ Headless mode (`rho headless`):
 ## Prerequisites
 
 - **Rust toolchain** (edition 2021)
-- For the embedded server path: **Python 3.12** + **uv**
+- **Agent Server binary** at `dist/openhands-agent-server` (or an external server)
 - An **LLM API key** (set `LLM_API_KEY`)
 
 ## Building
@@ -120,11 +112,10 @@ cargo build --release
 
 ## Usage
 
-### Embedded server (default if `.venv` exists)
+### Embedded server (default if `dist/openhands-agent-server` exists)
 
-If `.venv/bin/python` exists (created by `make build`), Rho will try to start:
+If the binary is present, Rho will launch it automatically with:
 
-- module: `openhands.agent_server`
 - host/port: derived from `--server` (defaults to `http://127.0.0.1:8000`)
 - data dir: `.rho/` (conversations, bash events, logs)
 
@@ -136,24 +127,13 @@ cargo run -- --llm-api-key "$LLM_API_KEY"
 
 ### Connect to an existing Agent Server
 
-Start an Agent Server yourself (examples):
-
-```bash
-python -m openhands.agent_server --port 8000
-# or
-# docker run -p 8000:8000 ghcr.io/openhands/agent-server:latest
-```
-
-Then point Rho at it:
+Point Rho at a running server:
 
 ```bash
 cargo run -- \
   --server http://127.0.0.1:8000 \
   --llm-api-key "$LLM_API_KEY"
 ```
-
-Note: if you want to *prevent* Rho from attempting to launch an embedded server,
-run without the repo’s `.venv/` present.
 
 ### Web mode (browser access)
 
@@ -248,6 +228,7 @@ When actions require confirmation:
 |---------|-------------|
 | `/help` | Show help modal |
 | `/new` | Start a new conversation (clears UI state) |
+| `/rename <name>` | Rename the current conversation |
 | `/pause` | Pause the agent |
 | `/usage` | Show token usage details |
 | `/settings` | Show/edit current settings |
@@ -273,6 +254,8 @@ Rho creates a `.rho/` directory at the repository root and uses it for:
 ## Project Structure
 
 ```
+dist/
+└── openhands-agent-server   # Agent Server binary
 src/
 ├── main.rs              # Entry point, terminal setup, embedded server launcher
 ├── cli.rs               # CLI args and subcommands (clap)
@@ -290,9 +273,6 @@ web/
 ## Development
 
 ```bash
-# Install/update the embedded Agent Server dependencies
-make build
-
 cargo test
 cargo clippy
 cargo fmt

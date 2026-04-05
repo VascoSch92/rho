@@ -106,43 +106,36 @@ async fn main() -> Result<()> {
     result
 }
 
-/// Start the OpenHands agent server from the project's .venv.
-/// Returns None if the venv or the module is not available.
+/// Start the OpenHands agent server from `dist/openhands-agent-server`.
+/// Returns None if the binary is not found.
 fn start_agent_server(server_url: &str, rho_dir: &std::path::Path) -> Option<Child> {
     let parsed = url::Url::parse(server_url).ok()?;
     let host = parsed.host_str().unwrap_or("127.0.0.1").to_string();
     let port = parsed.port().unwrap_or(8000);
 
-    let venv_python = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join(".venv")
-        .join("bin")
-        .join("python");
+    let dist_binary = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("dist")
+        .join("openhands-agent-server");
 
-    if !venv_python.exists() {
+    if !dist_binary.exists() {
         warn!(
-            "Agent server venv not found at {}. Run `make build` first.",
-            venv_python.display()
+            "Agent server binary not found at {}.",
+            dist_binary.display()
         );
         return None;
     }
 
     info!("Starting agent server on {}:{}", host, port);
 
-    let mut cmd = Command::new(&venv_python);
-    cmd.args([
-        "-m",
-        "openhands.agent_server",
-        "--port",
-        &port.to_string(),
-        "--host",
-        &host,
-    ])
-    .current_dir(rho_dir)
-    .env("OH_CONVERSATIONS_PATH", "conversations")
-    .env("OH_BASH_EVENTS_DIR", "bash_events")
-    .env("OPENHANDS_SUPPRESS_BANNER", "1")
-    .stdout(std::process::Stdio::null())
-    .stderr(std::process::Stdio::null());
+    let mut cmd = Command::new(&dist_binary);
+    cmd.args(["--port", &port.to_string(), "--host", &host]);
+
+    cmd.current_dir(rho_dir)
+        .env("OH_CONVERSATIONS_PATH", "conversations")
+        .env("OH_BASH_EVENTS_DIR", "bash_events")
+        .env("OPENHANDS_SUPPRESS_BANNER", "1")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
 
     // Start in its own process group so we can kill all sub-processes on exit
     #[cfg(unix)]
@@ -169,7 +162,7 @@ fn stop_agent_server(server_process: &mut Option<Child>) {
         let pid = child.id();
         info!("Stopping agent server (pid={})", pid);
 
-        // Send SIGTERM to the entire process group so sub-processes (uvicorn workers, etc.) also exit
+        // Send SIGTERM to the entire process group so sub-processes also exit
         #[cfg(unix)]
         {
             // Kill the process group (negative pid)

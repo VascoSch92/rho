@@ -1,6 +1,9 @@
 # Rust build artifacts
 /target/
 
+# Build output
+/dist/
+
 # IDE
 .idea/
 .vscode/
