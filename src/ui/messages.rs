@@ -144,19 +144,27 @@ impl<'a> MessageListWidget<'a> {
                         msg.content.split_once('\n').unwrap_or((&msg.content, ""));
 
                     if !args_line.is_empty() {
-                        lines.push(Line::from(vec![
-                            Span::styled("│ ", Style::default().fg(t.accent)),
-                            Span::styled(args_line.to_string(), Style::default().fg(t.foreground)),
-                        ]));
+                        let args_width = width.saturating_sub(4);
+                        let wrapped = wrap(args_line, args_width);
+                        for wl in wrapped.iter() {
+                            lines.push(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(t.accent)),
+                                Span::styled(wl.to_string(), Style::default().fg(t.foreground)),
+                            ]));
+                        }
                     }
                     if !summary_line.is_empty() {
-                        lines.push(Line::from(vec![
-                            Span::styled("│ ", Style::default().fg(t.accent)),
-                            Span::styled(
-                                summary_line.to_string(),
-                                Style::default().fg(t.muted).add_modifier(Modifier::ITALIC),
-                            ),
-                        ]));
+                        let summary_width = width.saturating_sub(4);
+                        let wrapped = wrap(summary_line, summary_width);
+                        for wl in wrapped.iter() {
+                            lines.push(Line::from(vec![
+                                Span::styled("│ ", Style::default().fg(t.accent)),
+                                Span::styled(
+                                    wl.to_string(),
+                                    Style::default().fg(t.muted).add_modifier(Modifier::ITALIC),
+                                ),
+                            ]));
+                        }
                     }
                 }
 
@@ -266,12 +274,16 @@ impl<'a> MessageListWidget<'a> {
                     ),
                 ]));
 
-                // Output lines — show all
+                // Output lines — show all, wrapped to width
+                let output_width = width.saturating_sub(4);
                 for line in output.lines() {
-                    lines.push(Line::from(vec![
-                        Span::styled("│ ", Style::default().fg(t.accent)),
-                        Span::styled(line.to_string(), Style::default().fg(t.muted)),
-                    ]));
+                    let wrapped = wrap(line, output_width);
+                    for wl in wrapped.iter() {
+                        lines.push(Line::from(vec![
+                            Span::styled("│ ", Style::default().fg(t.accent)),
+                            Span::styled(wl.to_string(), Style::default().fg(t.muted)),
+                        ]));
+                    }
                 }
 
                 // Footer
@@ -301,7 +313,7 @@ impl Widget for MessageListWidget<'_> {
         let content_width = inner_area.width.saturating_sub(2) as usize;
 
         // Always show the banner at the top
-        all_lines.extend(build_banner_lines(self.state, t));
+        all_lines.extend(build_banner_lines(self.state, t, content_width));
 
         // Group consecutive Action messages together
         let messages = &self.state.messages;
@@ -343,8 +355,8 @@ impl Widget for MessageListWidget<'_> {
     }
 }
 
-/// Build the banner lines (logo + info on the right)
-fn build_banner_lines<'a>(state: &AppState, t: &Theme) -> Vec<Line<'a>> {
+/// Build the banner lines (logo + info on the right, or stacked when narrow)
+fn build_banner_lines<'a>(state: &AppState, t: &Theme, content_width: usize) -> Vec<Line<'a>> {
     let mut lines: Vec<Line> = Vec::new();
 
     let banner = rho_banner(VERSION);
@@ -386,7 +398,6 @@ fn build_banner_lines<'a>(state: &AppState, t: &Theme) -> Vec<Line<'a>> {
             Span::styled(" for commands", Style::default().fg(t.muted)),
         ],
         vec![],
-        vec![],
         vec![Span::styled(
             "Time to build something awesome",
             Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
@@ -397,36 +408,78 @@ fn build_banner_lines<'a>(state: &AppState, t: &Theme) -> Vec<Line<'a>> {
 
     let version_suffix = format!("v{}", VERSION);
 
-    for (i, banner_line) in banner.iter().enumerate() {
-        let padding = banner_width.saturating_sub(banner_line.chars().count());
-        let mut spans = vec![Span::styled("    ", Style::default())];
+    // Minimum width needed for side-by-side layout:
+    //   4 (left pad) + banner_width + 5 ("  │  ") + ~20 (info) = ~50+
+    let min_side_by_side = banner_width + 4 + 5 + 20;
+    let side_by_side = content_width >= min_side_by_side;
 
-        // Split off the version suffix so it can be styled differently
-        if let Some(pos) = banner_line.find(&version_suffix) {
-            let logo_part = &banner_line[..pos];
-            spans.push(Span::styled(
-                logo_part.to_string(),
-                Style::default().fg(t.primary),
-            ));
-            spans.push(Span::styled(
-                version_suffix.clone(),
-                Style::default().fg(t.muted),
-            ));
-        } else {
-            spans.push(Span::styled(
-                banner_line.clone(),
-                Style::default().fg(t.primary),
-            ));
+    if side_by_side {
+        for (i, banner_line) in banner.iter().enumerate() {
+            let padding = banner_width.saturating_sub(banner_line.chars().count());
+            let mut spans = vec![Span::styled("    ", Style::default())];
+
+            // Split off the version suffix so it can be styled differently
+            if let Some(pos) = banner_line.find(&version_suffix) {
+                let logo_part = &banner_line[..pos];
+                spans.push(Span::styled(
+                    logo_part.to_string(),
+                    Style::default().fg(t.primary),
+                ));
+                spans.push(Span::styled(
+                    version_suffix.clone(),
+                    Style::default().fg(t.muted),
+                ));
+            } else {
+                spans.push(Span::styled(
+                    banner_line.clone(),
+                    Style::default().fg(t.primary),
+                ));
+            }
+
+            spans.push(Span::raw(" ".repeat(padding)));
+            spans.push(Span::styled("  │  ", Style::default().fg(t.muted)));
+
+            if let Some(info_spans) = info_lines.get(i) {
+                spans.extend(info_spans.iter().cloned());
+            }
+
+            lines.push(Line::from(spans));
+        }
+    } else {
+        // Narrow terminal: stack logo above info
+        for banner_line in &banner {
+            let mut spans = vec![Span::styled("  ", Style::default())];
+
+            if let Some(pos) = banner_line.find(&version_suffix) {
+                let logo_part = &banner_line[..pos];
+                spans.push(Span::styled(
+                    logo_part.to_string(),
+                    Style::default().fg(t.primary),
+                ));
+                spans.push(Span::styled(
+                    version_suffix.clone(),
+                    Style::default().fg(t.muted),
+                ));
+            } else {
+                spans.push(Span::styled(
+                    banner_line.clone(),
+                    Style::default().fg(t.primary),
+                ));
+            }
+
+            lines.push(Line::from(spans));
         }
 
-        spans.push(Span::raw(" ".repeat(padding)));
-        spans.push(Span::styled("  │  ", Style::default().fg(t.muted)));
+        lines.push(Line::from(""));
 
-        if let Some(info_spans) = info_lines.get(i) {
+        for info_spans in &info_lines {
+            if info_spans.is_empty() {
+                continue;
+            }
+            let mut spans = vec![Span::styled("  ", Style::default())];
             spans.extend(info_spans.iter().cloned());
+            lines.push(Line::from(spans));
         }
-
-        lines.push(Line::from(spans));
     }
 
     lines.push(Line::from(""));

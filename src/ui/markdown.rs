@@ -146,17 +146,118 @@ impl MarkdownRenderer {
     }
 
     fn flush_line(&mut self) {
-        if !self.current_line.is_empty() {
-            let mut line_spans = Vec::new();
+        if self.current_line.is_empty() {
+            self.current_line = Vec::new();
+            return;
+        }
 
-            if self.in_blockquote {
-                line_spans.push(Span::styled("│ ", Style::default().fg(self.t.muted)));
+        let prefix: Option<Span<'static>> = if self.in_blockquote {
+            Some(Span::styled("│ ", Style::default().fg(self.t.muted)))
+        } else {
+            None
+        };
+
+        let prefix_width = prefix.as_ref().map_or(0, |p| p.content.chars().count());
+        let wrap_width = self.width.saturating_sub(prefix_width);
+
+        let spans = std::mem::take(&mut self.current_line);
+        let wrapped = Self::wrap_spans(&spans, wrap_width);
+
+        for line_spans in wrapped {
+            let mut out = Vec::new();
+            if let Some(ref pfx) = prefix {
+                out.push(pfx.clone());
+            }
+            out.extend(line_spans);
+            self.lines.push(Line::from(out));
+        }
+    }
+
+    /// Wrap a sequence of styled spans into multiple lines that fit within `max_width`.
+    fn wrap_spans(spans: &[Span<'static>], max_width: usize) -> Vec<Vec<Span<'static>>> {
+        if max_width == 0 {
+            return vec![spans.to_vec()];
+        }
+
+        // Build a flat list of (char, style_index) so we can find break points
+        let mut chars: Vec<(char, usize)> = Vec::new();
+        let mut styles: Vec<Style> = Vec::new();
+        for (si, span) in spans.iter().enumerate() {
+            styles.push(span.style);
+            for ch in span.content.chars() {
+                chars.push((ch, si));
+            }
+        }
+
+        if chars.is_empty() {
+            return vec![spans.to_vec()];
+        }
+
+        // Check total width — if it fits, return as-is
+        if chars.len() <= max_width {
+            return vec![spans.to_vec()];
+        }
+
+        // Split into lines, preferring word boundaries
+        let mut result: Vec<Vec<Span<'static>>> = Vec::new();
+        let mut pos = 0;
+
+        while pos < chars.len() {
+            let remaining = chars.len() - pos;
+            if remaining <= max_width {
+                // Last chunk fits
+                result.push(Self::chars_to_spans(&chars[pos..], &styles));
+                break;
             }
 
-            line_spans.append(&mut self.current_line);
-            self.lines.push(Line::from(line_spans));
+            let end = pos + max_width;
+            // Look backwards for a space to break at
+            let break_at = (pos..end)
+                .rev()
+                .find(|&i| chars[i].0 == ' ')
+                .map(|i| i + 1) // break after the space
+                .unwrap_or(end); // no space found, hard break
+
+            result.push(Self::chars_to_spans(&chars[pos..break_at], &styles));
+            pos = break_at;
+            // Skip leading spaces on the new line
+            while pos < chars.len() && chars[pos].0 == ' ' {
+                pos += 1;
+            }
         }
-        self.current_line = Vec::new();
+
+        if result.is_empty() {
+            result.push(vec![]);
+        }
+        result
+    }
+
+    /// Convert a slice of (char, style_index) back into coalesced spans.
+    fn chars_to_spans(chars: &[(char, usize)], styles: &[Style]) -> Vec<Span<'static>> {
+        if chars.is_empty() {
+            return vec![];
+        }
+        let mut spans: Vec<Span<'static>> = Vec::new();
+        let mut current_text = String::new();
+        let mut current_style_idx = chars[0].1;
+
+        for &(ch, si) in chars {
+            if si != current_style_idx {
+                if !current_text.is_empty() {
+                    spans.push(Span::styled(
+                        current_text.clone(),
+                        styles[current_style_idx],
+                    ));
+                    current_text.clear();
+                }
+                current_style_idx = si;
+            }
+            current_text.push(ch);
+        }
+        if !current_text.is_empty() {
+            spans.push(Span::styled(current_text, styles[current_style_idx]));
+        }
+        spans
     }
 
     fn process_event(&mut self, event: Event) {
@@ -397,13 +498,71 @@ impl MarkdownRenderer {
         }
     }
 
+    /// Shrink column widths proportionally so the table fits within `max_width`.
+    fn fit_col_widths(col_widths: &[usize], max_width: usize) -> Vec<usize> {
+        let ncols = col_widths.len();
+        if ncols == 0 {
+            return vec![];
+        }
+
+        // Total width = borders (ncols + 1) + padding (2 per col) + content
+        let border_overhead = ncols + 1 + ncols * 2;
+        let available = max_width.saturating_sub(border_overhead);
+        let content_total: usize = col_widths.iter().sum();
+
+        if content_total <= available {
+            return col_widths.to_vec();
+        }
+
+        // Minimum 3 chars per column (enough for "ab…")
+        let min_col = 3;
+        // Shrink proportionally, respecting minimums
+        let mut fitted: Vec<usize> = col_widths
+            .iter()
+            .map(|&w| {
+                let scaled = (w as f64 * available as f64 / content_total as f64).floor() as usize;
+                scaled.max(min_col)
+            })
+            .collect();
+
+        // If rounding over-allocated, trim the widest columns
+        let mut total: usize = fitted.iter().sum();
+        while total > available {
+            if let Some((idx, _)) = fitted.iter().enumerate().max_by_key(|(_, w)| *w) {
+                if fitted[idx] > min_col {
+                    fitted[idx] -= 1;
+                    total -= 1;
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
+        fitted
+    }
+
+    /// Wrap a cell's text into lines that fit within `max_chars`.
+    fn wrap_cell(s: &str, max_chars: usize) -> Vec<String> {
+        if max_chars == 0 {
+            return vec![String::new()];
+        }
+        if s.is_empty() {
+            return vec![String::new()];
+        }
+        use textwrap::wrap;
+        let wrapped = wrap(s, max_chars);
+        wrapped.iter().map(|l| l.to_string()).collect()
+    }
+
     /// Render the accumulated table rows into styled lines.
     fn render_table(&mut self) {
         if self.table.rows.is_empty() {
             return;
         }
 
-        let col_widths = &self.table.col_widths;
+        let col_widths = Self::fit_col_widths(&self.table.col_widths, self.width);
         let border_style = Style::default().fg(self.t.muted);
         let header_style = Style::default()
             .fg(self.t.primary)
@@ -428,15 +587,32 @@ impl MarkdownRenderer {
             let is_last = row_idx == total_rows - 1;
             let style = if is_header { header_style } else { cell_style };
 
-            // Row: │ cell │ cell │
-            let mut spans = vec![Span::styled("│", border_style)];
-            for (i, w) in col_widths.iter().enumerate() {
-                let cell = row.get(i).map(|s| s.as_str()).unwrap_or("");
-                let padded = format!(" {:<width$} ", cell, width = w);
-                spans.push(Span::styled(padded, style));
-                spans.push(Span::styled("│", border_style));
+            // Wrap each cell and find the max number of visual lines
+            let wrapped_cells: Vec<Vec<String>> = col_widths
+                .iter()
+                .enumerate()
+                .map(|(i, w)| {
+                    let cell = row.get(i).map(|s| s.as_str()).unwrap_or("");
+                    Self::wrap_cell(cell, *w)
+                })
+                .collect();
+            let max_lines = wrapped_cells.iter().map(|c| c.len()).max().unwrap_or(1);
+
+            // Render each visual line of this row
+            for line_idx in 0..max_lines {
+                let mut spans = vec![Span::styled("│", border_style)];
+                for (i, w) in col_widths.iter().enumerate() {
+                    let text = wrapped_cells
+                        .get(i)
+                        .and_then(|lines| lines.get(line_idx))
+                        .map(|s| s.as_str())
+                        .unwrap_or("");
+                    let padded = format!(" {:<width$} ", text, width = w);
+                    spans.push(Span::styled(padded, style));
+                    spans.push(Span::styled("│", border_style));
+                }
+                self.lines.push(Line::from(spans));
             }
-            self.lines.push(Line::from(spans));
 
             // Row separator (skip after last row — bottom border handles it)
             if !is_last {
