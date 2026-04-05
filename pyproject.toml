@@ -1,9 +1,0 @@
-[project]
-name = "rho-server"
-version = "0.1.0"
-description = "OpenHands Agent Server environment for Rho"
-requires-python = ">=3.12"
-dependencies = [
-    "openhands-agent-server>=1.15.0",
-    "openhands-tools>=1.14.0",
-]
