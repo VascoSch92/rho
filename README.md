@@ -34,8 +34,8 @@ If you pass `--debug`, logs are written to `.rho/rho.log`.
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Ratatui TUI (Rust)                       │
+┌──────────────────────────────────────────────────────────────┐
+│                     Ratatui TUI (Rust)                       │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
 │  │ Input Field │  │ Message Log │  │ Confirmation UI     │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
@@ -44,15 +44,32 @@ If you pass `--debug`, logs are written to `.rho/rho.log`.
 │           │    Async Event Handler        │                  │
 │           │  (tokio + WebSocket client)   │                  │
 │           └───────────────┬───────────────┘                  │
-└───────────────────────────┼─────────────────────────────────┘
+└───────────────────────────┼──────────────────────────────────┘
                             │ HTTP/WebSocket
                             ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Agent Server (Python)                          │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  OpenHands SDK: Conversation, Tools, Events         │    │
-│  └─────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│              Agent Server (Python)                           │
+│  ┌─────────────────────────────────────────────────────┐     │
+│  │  OpenHands SDK: Conversation, Tools, Events         │     │
+│  └─────────────────────────────────────────────────────┘     │
+└──────────────────────────────────────────────────────────────┘
+
+Web mode (`rho web`):
+
+┌──────────────────────────────────────────────────────────────┐
+│                  Browser (xterm.js)                          │
+│  ┌─────────────────────────────────────────────────────┐     │
+│  │               WebSocket client                      │     │
+│  └──────────────────────┬──────────────────────────────┘     │
+└─────────────────────────┼────────────────────────────────────┘
+                          │ WebSocket
+┌─────────────────────────┼────────────────────────────────────┐
+│                         ▼                                    │
+│        Rho Web Server (axum + portable-pty)                  │
+│  ┌─────────────────────────────────────────────────────┐     │
+│  │  PTY  ←→  spawns `rho` TUI as subprocess           │     │
+│  └─────────────────────────────────────────────────────┘     │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ## Features
@@ -64,6 +81,7 @@ If you pass `--debug`, logs are written to `.rho/rho.log`.
 - **Collapsible actions** + `Ctrl+E` expand/collapse all
 - **Status indicators** for connection, execution status, and token usage
 - **Themes** via `--theme` or `/theme`
+- **Web mode** — access the TUI from a browser via `rho web`
 
 ## Prerequisites
 
@@ -117,6 +135,20 @@ cargo run -- \
 
 Note: if you want to *prevent* Rho from attempting to launch an embedded server,
 run without the repo’s `.venv/` present.
+
+### Web mode (browser access)
+
+Rho can serve the full TUI in a browser using xterm.js:
+
+```bash
+# Start the web server (default: http://127.0.0.1:12000)
+cargo run -- web
+
+# Custom host/port
+cargo run -- web --host 0.0.0.0 --port 8080
+```
+
+Open the printed URL in your browser. Each browser tab gets its own independent session. Environment variables (`LLM_API_KEY`, etc.) are forwarded to each session automatically.
 
 ### Common options
 
@@ -204,12 +236,15 @@ Rho creates a `.rho/` directory at the repository root and uses it for:
 ```
 src/
 ├── main.rs              # Entry point, terminal setup, embedded server launcher
-├── cli.rs               # CLI args (clap)
+├── cli.rs               # CLI args and subcommands (clap)
 ├── client/              # HTTP + WebSocket client for Agent Server
 ├── handlers/            # Key handling, slash commands, settings edits, command execution
 ├── state/               # App state + message models
 ├── ui/                  # Ratatui UI (widgets, modals, markdown rendering)
-└── config/              # Theme definitions
+├── config/              # Theme definitions
+└── web/                 # Web server (axum + PTY + xterm.js frontend)
+web/
+└── index.html           # xterm.js frontend (embedded at compile time)
 ```
 
 ## Development
