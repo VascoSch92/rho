@@ -9,6 +9,7 @@ mod events;
 mod handlers;
 mod state;
 mod ui;
+mod web;
 
 use std::io;
 use std::process::{Child, Command};
@@ -27,7 +28,7 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use cli::Args;
+use cli::{Args, Cli};
 use client::{AgentServerClient, EventStream, ExecutionStatus, LLMConfig};
 use config::RhoConfig;
 use handlers::{handle_key_event, process_command};
@@ -43,7 +44,14 @@ fn ensure_rho_dir() -> std::path::PathBuf {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args = <Args as clap::Parser>::parse();
+    let cli = <Cli as clap::Parser>::parse();
+
+    // Dispatch to web server if `rho web` subcommand was used
+    if let Some(cli::Command::Web(web_args)) = cli.command {
+        return web::run_web_server(&web_args).await;
+    }
+
+    let args = cli.tui;
     let rho_dir = ensure_rho_dir();
 
     // Initialize logging - write to file when debug is enabled

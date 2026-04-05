@@ -63,6 +63,17 @@ pulldown-cmark = "0.13.3"
 # Byte buffers (WebSocket ping/pong)
 bytes = "1.11.1"
 
+# Web server (for `rho web`)
+axum = { version = "0.8", features = ["ws"] }
+tower-http = { version = "0.6", features = ["cors"] }
+
+# PTY spawning (for `rho web`)
+portable-pty = "0.8"
+
+# Embed static assets (xterm.js frontend)
+rust-embed = "8"
+mime_guess = "2"
+
 # Unix process management
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

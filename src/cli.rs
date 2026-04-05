@@ -1,7 +1,7 @@
 //! Command-line argument parsing.
 
 use clap::builder::styling::{AnsiColor, Effects, Styles};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use uuid::Uuid;
 
 use crate::state::LlmProvider;
@@ -37,6 +37,34 @@ const HELP_TEMPLATE: &str = "\
 #[command(about = "Terminal UI for OpenHands Agent Server")]
 #[command(styles = STYLES)]
 #[command(help_template = HELP_TEMPLATE)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Option<Command>,
+
+    /// All existing TUI args, flattened so `rho --server X` still works
+    #[command(flatten)]
+    pub tui: Args,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Launch a web server that serves the TUI in a browser via xterm.js
+    Web(WebArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct WebArgs {
+    /// Host to bind the web server to
+    #[arg(long, default_value = "127.0.0.1")]
+    pub host: String,
+
+    /// Port for the web server
+    #[arg(long, default_value_t = 12000)]
+    pub port: u16,
+}
+
+/// Rho TUI arguments (default mode)
+#[derive(clap::Args, Debug)]
 pub struct Args {
     /// Agent Server URL
     #[arg(short, long, default_value = "http://127.0.0.1:8000")]

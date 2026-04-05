@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rho</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #0a0a0f; overflow: hidden; }
+    #terminal { width: 100%; height: 100%; }
+    #status {
+      position: fixed; top: 0; left: 0; right: 0;
+      text-align: center; padding: 8px;
+      font-family: monospace; font-size: 14px;
+      color: #f5c542; background: rgba(10, 10, 15, 0.9);
+      z-index: 10; display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="status"></div>
+  <div id="terminal"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/lib/addon-fit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0/lib/addon-web-links.min.js"></script>
+  <script>
+    const statusEl = document.getElementById('status');
+    function showStatus(msg) { statusEl.textContent = msg; statusEl.style.display = 'block'; }
+    function hideStatus() { statusEl.style.display = 'none'; }
+
+    const term = new Terminal({
+      fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
+      fontSize: 14,
+      cursorBlink: true,
+      theme: {
+        background: '#0a0a0f',
+        foreground: '#e0e0e0',
+        cursor: '#f5c542',
+        selectionBackground: 'rgba(245, 197, 66, 0.3)',
+      },
+    });
+
+    const fitAddon = new FitAddon.FitAddon();
+    const webLinksAddon = new WebLinksAddon.WebLinksAddon();
+    term.loadAddon(fitAddon);
+    term.loadAddon(webLinksAddon);
+    term.open(document.getElementById('terminal'));
+    fitAddon.fit();
+
+    let ws = null;
+    let reconnectTimer = null;
+
+    function connect() {
+      if (ws && ws.readyState <= 1) return;
+
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${proto}//${location.host}/ws`);
+      ws.binaryType = 'arraybuffer';
+
+      ws.onopen = () => {
+        hideStatus();
+        // Send initial terminal size
+        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      };
+
+      ws.onmessage = (ev) => {
+        if (ev.data instanceof ArrayBuffer) {
+          term.write(new Uint8Array(ev.data));
+        } else {
+          term.write(ev.data);
+        }
+      };
+
+      ws.onclose = () => {
+        showStatus('Disconnected. Reconnecting...');
+        reconnectTimer = setTimeout(connect, 2000);
+      };
+
+      ws.onerror = () => { ws.close(); };
+    }
+
+    // Send keystrokes to PTY
+    term.onData((data) => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+      }
+    });
+
+    // Send binary data (e.g. paste with special chars)
+    term.onBinary((data) => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const bytes = new Uint8Array(data.length);
+        for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i);
+        ws.send(bytes.buffer);
+      }
+    });
+
+    // Handle terminal resize
+    window.addEventListener('resize', () => {
+      fitAddon.fit();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      }
+    });
+
+    connect();
+  </script>
+</body>
+</html>
