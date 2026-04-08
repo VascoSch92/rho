@@ -77,16 +77,80 @@ for pkg in openhands-sdk openhands-tools openhands-workspace openhands-agent-ser
   fi
 done
 
+# ── Patch spec: add missing hidden imports & data files ──────────────
+echo "==> Patching spec file: adding missing modules"
+"$PYTHON" -c "
+import pathlib, sys
+p = pathlib.Path(sys.argv[1])
+txt = p.read_text()
+
+# 1. Add hidden imports for jinja2 and binaryornot
+old_hi = '*collect_submodules(\"fakeredis\"),'
+new_hi = old_hi + '''
+        *collect_submodules(\"jinja2\"),
+        \"jinja2.debug\",
+        *collect_submodules(\"binaryornot\"),'''
+if old_hi in txt:
+    txt = txt.replace(old_hi, new_hi, 1)
+
+# 2. Add binaryornot data files (binaryornot.data needed by importlib.resources)
+old_data = '*collect_data_files(\"fakeredis\"),'
+new_data = old_data + '''
+        *collect_data_files(\"binaryornot\"),'''
+if old_data in txt:
+    txt = txt.replace(old_data, new_data, 1)
+
+# 3. Switch from one-file to one-dir (COLLECT step) for fast startup
+#    Replace the EXE that bundles everything into a single binary with
+#    an EXE + COLLECT that outputs a directory.
+old_exe = '''exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name=\"openhands-agent-server\",'''
+new_exe = '''exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name=\"openhands-agent-server\",'''
+if old_exe in txt:
+    txt = txt.replace(old_exe, new_exe, 1)
+
+# Add COLLECT after the EXE closing paren
+old_exe_end = '''    icon=None,
+)'''
+new_exe_end = '''    icon=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=True,
+    upx=True,
+    name=\"openhands-agent-server\",
+)'''
+if old_exe_end in txt:
+    txt = txt.replace(old_exe_end, new_exe_end, 1)
+
+p.write_text(txt)
+print('Patched successfully')
+" "$SPEC_FILE"
+
 # ── Build the binary ─────────────────────────────────────────────────
 echo "==> Running PyInstaller (from repo root)"
 pushd "$REPO_DIR" > /dev/null
 pyinstaller --noconfirm --clean "$SPEC_FILE" --distpath "$OUTPUT_DIR"
 popd > /dev/null
 
-BINARY="$OUTPUT_DIR/openhands-agent-server"
+BINARY="$OUTPUT_DIR/openhands-agent-server/openhands-agent-server"
 if [ -f "$BINARY" ]; then
-  echo "==> Build succeeded: $BINARY"
+  echo "==> Build succeeded (onedir): $OUTPUT_DIR/openhands-agent-server/"
   ls -lh "$BINARY"
+  du -sh "$OUTPUT_DIR/openhands-agent-server/"
 else
   echo "ERROR: Expected binary not found at $BINARY"
   exit 1

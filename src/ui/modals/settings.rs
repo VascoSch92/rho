@@ -52,7 +52,7 @@ impl Widget for SettingsModal<'_> {
         let label_style = field_label_style(is_selected, t);
         let value_style = Style::default().fg(t.foreground);
         lines.push(Line::from(vec![
-            Span::styled(indicator(is_selected), label_style),
+            Span::styled(indicator(is_selected, &self.state.selector_indicator), label_style),
             Span::styled("Provider:  ", label_style),
             Span::styled(self.state.llm.provider.display_name(), value_style),
             if is_selected && !dropdown {
@@ -65,6 +65,7 @@ impl Widget for SettingsModal<'_> {
         // Provider dropdown
         if is_selected && dropdown {
             let providers = LlmProvider::all();
+            let dd_indicator = format!("    {}", crate::ui::formatting::selector_prefix(true, &self.state.selector_indicator));
             for (i, p) in providers.iter().enumerate() {
                 let is_dd_selected = i == self.state.settings.dropdown_selected;
                 let dd_style = if is_dd_selected {
@@ -72,12 +73,9 @@ impl Widget for SettingsModal<'_> {
                 } else {
                     Style::default().fg(t.foreground)
                 };
+                let prefix = if is_dd_selected { &dd_indicator } else { "       " };
                 lines.push(Line::from(vec![
-                    Span::raw(if is_dd_selected {
-                        "     ▶ "
-                    } else {
-                        "       "
-                    }),
+                    Span::raw(prefix.to_string()),
                     Span::styled(p.display_name().to_string(), dd_style),
                 ]));
             }
@@ -94,7 +92,7 @@ impl Widget for SettingsModal<'_> {
             &self.state.llm.model
         };
         lines.push(Line::from(vec![
-            Span::styled(indicator(is_selected), label_style),
+            Span::styled(indicator(is_selected, &self.state.selector_indicator), label_style),
             Span::styled("Model:     ", label_style),
             Span::styled(model_display, Style::default().fg(t.foreground)),
             if is_selected && !dropdown {
@@ -107,6 +105,7 @@ impl Widget for SettingsModal<'_> {
         // Model dropdown
         if is_selected && dropdown {
             let models = self.state.llm.provider.models();
+            let dd_indicator = format!("    {}", crate::ui::formatting::selector_prefix(true, &self.state.selector_indicator));
             for (i, m) in models.iter().enumerate() {
                 let is_dd_selected = i == self.state.settings.dropdown_selected;
                 let dd_style = if is_dd_selected {
@@ -114,12 +113,9 @@ impl Widget for SettingsModal<'_> {
                 } else {
                     Style::default().fg(t.foreground)
                 };
+                let prefix = if is_dd_selected { &dd_indicator } else { "       " };
                 lines.push(Line::from(vec![
-                    Span::raw(if is_dd_selected {
-                        "     ▶ "
-                    } else {
-                        "       "
-                    }),
+                    Span::raw(prefix.to_string()),
                     Span::styled(*m, dd_style),
                 ]));
             }
@@ -141,7 +137,7 @@ impl Widget for SettingsModal<'_> {
             Style::default().fg(t.foreground)
         };
         lines.push(Line::from(vec![
-            Span::styled(indicator(is_selected), label_style),
+            Span::styled(indicator(is_selected, &self.state.selector_indicator), label_style),
             Span::styled("API Key:   ", label_style),
             Span::styled(key_display, value_style),
             if is_selected && !editing {
@@ -171,7 +167,7 @@ impl Widget for SettingsModal<'_> {
             Style::default().fg(t.foreground)
         };
         lines.push(Line::from(vec![
-            Span::styled(indicator(is_selected), label_style),
+            Span::styled(indicator(is_selected, &self.state.selector_indicator), label_style),
             Span::styled("Base URL:  ", label_style),
             Span::styled(url_display, value_style),
             if is_selected && !editing {
@@ -221,12 +217,8 @@ impl Widget for SettingsModal<'_> {
     }
 }
 
-fn indicator(is_selected: bool) -> &'static str {
-    if is_selected {
-        " ▶ "
-    } else {
-        "   "
-    }
+fn indicator(is_selected: bool, selector: &str) -> String {
+    format!(" {}", crate::ui::formatting::selector_prefix(is_selected, selector))
 }
 
 fn field_label_style(is_selected: bool, t: &crate::config::theme::Theme) -> Style {

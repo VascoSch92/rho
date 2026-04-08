@@ -11,6 +11,11 @@
 # api_key = ""
 # base_url = ""
 
+# ── UI ────────────────────────────────────────────────────────────────────────
+[ui]
+# Symbol shown next to the selected item in menus/modals
+selector_indicator = "❯"
+
 # ── Theme ─────────────────────────────────────────────────────────────────────
 [theme]
 # Active theme name (any key from [theme.themes.*] below)
@@ -78,6 +83,16 @@ muted      = "#928374"
 border     = "#504945"
 error      = "#fb4934"
 success    = "#b8bb26"
+
+[theme.themes.github]
+primary    = "#58a6ff"
+accent     = "#d2a8ff"
+foreground = "#e6edf3"
+background = "reset"
+muted      = "#8b949e"
+border     = "#30363d"
+error      = "#f85149"
+success    = "#3fb950"
 
 # To add a custom theme, just add a new section:
 # [theme.themes.my_theme]

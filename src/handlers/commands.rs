@@ -22,6 +22,15 @@ pub async fn process_command(
 ) -> Result<bool> {
     match command {
         AppCommand::SendMessage(message) => {
+            // Queue the message if the agent is busy — don't display yet,
+            // it will be displayed when sent from the queue so the order is
+            // PROMPT_1, ANSWER_1, PROMPT_2, ANSWER_2
+            if state.conversation_id.is_some() && state.is_running() {
+                state.message_queue.push_back(message);
+                info!("Agent busy, queued message ({} in queue)", state.message_queue.len());
+                return Ok(false);
+            }
+
             // Add user message to display
             state.add_message(DisplayMessage::user(&message));
 

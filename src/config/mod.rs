@@ -51,6 +51,8 @@ pub struct RhoConfig {
     pub scroll_lines: usize,
     /// Scroll lines (page up/down)
     pub scroll_lines_large: usize,
+    /// Selector indicator symbol (shown next to selected items in modals)
+    pub selector_indicator: String,
 }
 
 impl Default for RhoConfig {
@@ -80,6 +82,8 @@ struct RawConfig {
     keybindings: RawKeyBindingsConfig,
     #[serde(default)]
     scroll: RawScrollConfig,
+    #[serde(default)]
+    ui: RawUiConfig,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -114,6 +118,12 @@ struct RawFunFactsConfig {
     messages: Option<Vec<String>>,
     #[serde(default)]
     append: bool,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+struct RawUiConfig {
+    #[serde(default)]
+    selector_indicator: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -243,6 +253,13 @@ impl RhoConfig {
             .or(defaults.scroll.lines_large)
             .unwrap_or(10);
 
+        // ── UI ────────────────────────────────────────────────────────────
+        let selector_indicator = user
+            .as_ref()
+            .and_then(|u| u.ui.selector_indicator.clone())
+            .or(defaults.ui.selector_indicator)
+            .unwrap_or_else(|| "❯".into());
+
         Self {
             llm,
             theme_name,
@@ -255,6 +272,7 @@ impl RhoConfig {
             keybindings,
             scroll_lines,
             scroll_lines_large,
+            selector_indicator,
         }
     }
 }
@@ -317,9 +335,13 @@ fn merge_keybindings(defaults: KeyBindingsConfig, user: KeyBindingsConfig) -> Ke
     }
 }
 
-/// Get the path to the config file: `~/.config/rho/config.toml`
+/// Get the path to the user config file: `.rho/config.toml` (next to the binary).
 pub fn config_file_path() -> Option<PathBuf> {
-    directories::ProjectDirs::from("", "", "rho").map(|dirs| dirs.config_dir().join("config.toml"))
+    Some(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(".rho")
+            .join("config.toml"),
+    )
 }
 
 /// Save LLM settings to the user config file using toml_edit for surgical writes.
@@ -360,5 +382,32 @@ pub fn save_llm(model: &str, api_key: &str, base_url: Option<&str>) -> Result<()
         .map_err(|e| format!("Failed to write config file: {}", e))?;
 
     tracing::info!("Saved LLM settings to {}", path.display());
+    Ok(())
+}
+
+/// Save the active theme name to the user config file.
+pub fn save_theme(theme_name: &str) -> Result<(), String> {
+    let path = config_file_path().ok_or("Could not determine config directory")?;
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create config directory: {}", e))?;
+    }
+
+    let contents = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut doc = contents
+        .parse::<toml_edit::DocumentMut>()
+        .map_err(|e| format!("Failed to parse config file: {}", e))?;
+
+    if !doc.contains_key("theme") {
+        doc["theme"] = toml_edit::Item::Table(toml_edit::Table::new());
+    }
+
+    doc["theme"]["name"] = toml_edit::value(theme_name);
+
+    std::fs::write(&path, doc.to_string())
+        .map_err(|e| format!("Failed to write config file: {}", e))?;
+
+    tracing::info!("Saved theme '{}' to {}", theme_name, path.display());
     Ok(())
 }

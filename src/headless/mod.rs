@@ -37,16 +37,32 @@ pub async fn run_headless(args: &HeadlessArgs) -> Result<i32> {
         bail!("Task cannot be empty");
     }
 
-    // Resolve LLM API key
-    let llm_api_key = match &args.llm_api_key {
-        Some(key) => key.clone(),
-        None => bail!("LLM_API_KEY is required. Set via --llm-api-key or LLM_API_KEY env var."),
-    };
+    // Resolve LLM settings from config
+    let rho_config = crate::config::RhoConfig::load();
+    let config_llm = rho_config.llm;
+
+    // Apply env var overrides only with --override-with-envs
+    let env_model = if args.override_with_envs { std::env::var("LLM_MODEL").ok() } else { None };
+    let env_api_key = if args.override_with_envs { std::env::var("LLM_API_KEY").ok() } else { None };
+    let env_base_url = if args.override_with_envs { std::env::var("LLM_BASE_URL").ok() } else { None };
+
+    let effective_model = env_model
+        .or(config_llm.model)
+        .unwrap_or_else(|| "anthropic/claude-sonnet-4-5-20250929".to_string());
+    let effective_base_url = env_base_url.or(config_llm.base_url);
+    let llm_api_key = env_api_key
+        .or(config_llm.api_key.filter(|k| !k.is_empty()))
+        .ok_or_else(|| anyhow::anyhow!("LLM_API_KEY is required. Set via --override-with-envs + LLM_API_KEY env, or /settings."))?;
+
+    // Persist env overrides
+    if args.override_with_envs {
+        let _ = crate::config::save_llm(&effective_model, &llm_api_key, effective_base_url.as_deref());
+    }
 
     // Build LLM config
     let llm_config = {
-        let config = LLMConfig::new(&args.model, &llm_api_key);
-        if let Some(ref base_url) = args.llm_base_url {
+        let config = LLMConfig::new(&effective_model, &llm_api_key);
+        if let Some(ref base_url) = effective_base_url {
             config.with_base_url(base_url)
         } else {
             config

@@ -67,6 +67,10 @@ pub struct WebArgs {
     /// Port for the web server
     #[arg(long, default_value_t = 12000)]
     pub port: u16,
+
+    /// Override LLM settings with environment variables (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL)
+    #[arg(long)]
+    pub override_with_envs: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -95,23 +99,6 @@ pub struct HeadlessArgs {
     #[arg(long, env = "OPENHANDS_SESSION_API_KEY")]
     pub session_api_key: Option<String>,
 
-    /// LLM model name
-    #[arg(
-        short,
-        long,
-        env = "LLM_MODEL",
-        default_value = "anthropic/claude-sonnet-4-5-20250929"
-    )]
-    pub model: String,
-
-    /// LLM API key
-    #[arg(long, env = "LLM_API_KEY")]
-    pub llm_api_key: Option<String>,
-
-    /// LLM base URL (optional, for custom endpoints)
-    #[arg(long, env = "LLM_BASE_URL")]
-    pub llm_base_url: Option<String>,
-
     /// Working directory for the agent
     #[arg(short, long)]
     pub workspace: Option<String>,
@@ -119,6 +106,10 @@ pub struct HeadlessArgs {
     /// Auto-approve all actions (no confirmation prompts)
     #[arg(long)]
     pub auto_approve: bool,
+
+    /// Override LLM settings with environment variables (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL)
+    #[arg(long)]
+    pub override_with_envs: bool,
 }
 
 /// Rho TUI arguments (default mode)
@@ -131,23 +122,6 @@ pub struct Args {
     /// Session API key for authentication (can also use OPENHANDS_SESSION_API_KEY env var)
     #[arg(long, env = "OPENHANDS_SESSION_API_KEY")]
     pub session_api_key: Option<String>,
-
-    /// LLM model name (e.g., "anthropic/claude-sonnet-4-5-20250929", "openai/gpt-4o")
-    #[arg(
-        short,
-        long,
-        env = "LLM_MODEL",
-        default_value = "anthropic/claude-sonnet-4-5-20250929"
-    )]
-    pub model: String,
-
-    /// LLM API key (can also use LLM_API_KEY env var)
-    #[arg(long, env = "LLM_API_KEY")]
-    pub llm_api_key: Option<String>,
-
-    /// LLM base URL (optional, for custom endpoints)
-    #[arg(long, env = "LLM_BASE_URL")]
-    pub llm_base_url: Option<String>,
 
     /// Working directory for the agent
     #[arg(short, long)]
@@ -170,8 +144,12 @@ pub struct Args {
     pub debug: bool,
 
     /// Color theme (rho, dracula, catppuccin, tokyonight, solarized, gruvbox, or custom)
-    #[arg(long, env = "RHO_THEME", default_value = "rho")]
-    pub theme: String,
+    #[arg(long, env = "RHO_THEME")]
+    pub theme: Option<String>,
+
+    /// Override LLM settings with environment variables (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL)
+    #[arg(long)]
+    pub override_with_envs: bool,
 }
 
 /// Parse model argument in format "provider/model" or just "model"

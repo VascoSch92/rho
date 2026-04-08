@@ -59,6 +59,9 @@ pub struct AppState {
     // Pending confirmations
     pub pending_actions: Vec<PendingAction>,
 
+    // Message queue — holds messages submitted while the agent is busy
+    pub message_queue: VecDeque<String>,
+
     // Notifications
     pub notifications: Vec<Notification>,
 
@@ -98,6 +101,7 @@ pub struct AppState {
     pub keybindings: KeyBindingsConfig,
     pub scroll_lines: usize,
     pub scroll_lines_large: usize,
+    pub selector_indicator: String,
 
     // Workspace info
     pub workspace_path: String,
@@ -156,6 +160,7 @@ impl AppState {
             keybindings: config.keybindings,
             scroll_lines: config.scroll_lines,
             scroll_lines_large: config.scroll_lines_large,
+            selector_indicator: config.selector_indicator,
             theme,
             theme_name: config.theme_name,
             available_themes: config.theme_names,
@@ -178,6 +183,7 @@ impl AppState {
             conversation_title: None,
             confirmation_policy: ConfirmationPolicy::AlwaysConfirm,
             pending_actions: Vec::new(),
+            message_queue: VecDeque::new(),
             notifications: Vec::new(),
             metrics: MetricsState {
                 context_window: 200000,
@@ -212,6 +218,7 @@ impl AppState {
             keybindings: defaults.keybindings,
             scroll_lines: defaults.scroll_lines,
             scroll_lines_large: defaults.scroll_lines_large,
+            selector_indicator: defaults.selector_indicator,
             workspace_path: ".".to_string(),
             needs_stats_refresh: false,
             server_starting: false,

@@ -29,6 +29,11 @@ struct Asset;
 pub async fn run_web_server(args: &WebArgs) -> Result<()> {
     tracing_subscriber::fmt::init();
 
+    // Propagate --override-with-envs via env var for PTY subprocesses
+    if args.override_with_envs {
+        std::env::set_var("RHO_OVERRIDE_WITH_ENVS", "1");
+    }
+
     let app = Router::new()
         .route("/ws", get(ws_handler))
         .fallback(get(static_handler));
@@ -121,6 +126,11 @@ async fn handle_socket_inner(socket: WebSocket) -> Result<()> {
     }
     // Ensure TERM is set for proper TUI rendering
     cmd.env("TERM", "xterm-256color");
+
+    // Forward --override-with-envs to the spawned TUI if set
+    if std::env::var("RHO_OVERRIDE_WITH_ENVS").is_ok() {
+        cmd.arg("--override-with-envs");
+    }
 
     let child = pty_pair.slave.spawn_command(cmd)?;
     let child = Arc::new(std::sync::Mutex::new(child));

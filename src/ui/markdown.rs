@@ -69,6 +69,7 @@ struct MarkdownRenderer {
     in_code_block: bool,
     code_block_content: String,
     in_list: bool,
+    in_item: bool,
     list_indent: usize,
     in_heading: Option<HeadingLevel>,
     in_blockquote: bool,
@@ -91,6 +92,7 @@ impl MarkdownRenderer {
             in_code_block: false,
             code_block_content: String::new(),
             in_list: false,
+            in_item: false,
             list_indent: 0,
             in_heading: None,
             in_blockquote: false,
@@ -272,7 +274,7 @@ impl MarkdownRenderer {
                     }
                 } else {
                     self.current_line.push(Span::styled(
-                        format!("`{}`", code),
+                        code.to_string(),
                         Style::default().fg(self.t.primary),
                     ));
                 }
@@ -340,13 +342,17 @@ impl MarkdownRenderer {
                 )]));
             }
             Tag::List(_) => {
+                self.flush_line();
                 if self.in_list {
                     self.list_indent += 1;
+                } else {
+                    self.lines.push(Line::from(""));
                 }
                 self.in_list = true;
             }
             Tag::Item => {
                 self.flush_line();
+                self.in_item = true;
                 let indent = "  ".repeat(self.list_indent);
                 self.current_line.push(Span::styled(
                     format!("{}• ", indent),
@@ -392,7 +398,10 @@ impl MarkdownRenderer {
         match tag {
             TagEnd::Paragraph => {
                 self.flush_line();
-                self.lines.push(Line::from(""));
+                // Don't add blank line after paragraphs inside list items
+                if !self.in_item {
+                    self.lines.push(Line::from(""));
+                }
             }
             TagEnd::Heading(_) => {
                 self.flush_line();
@@ -423,10 +432,12 @@ impl MarkdownRenderer {
                     self.list_indent -= 1;
                 } else {
                     self.in_list = false;
+                    self.lines.push(Line::from(""));
                 }
             }
             TagEnd::Item => {
                 self.flush_line();
+                self.in_item = false;
             }
             TagEnd::Emphasis => {
                 self.style.italic = false;

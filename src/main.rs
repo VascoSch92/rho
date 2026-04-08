@@ -115,6 +115,7 @@ fn start_agent_server(server_url: &str, rho_dir: &std::path::Path) -> Option<Chi
 
     let dist_binary = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("dist")
+        .join("openhands-agent-server")
         .join("openhands-agent-server");
 
     if !dist_binary.exists() {
@@ -219,21 +220,32 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
     // Load configuration (from ~/.config/rho/config.toml or defaults)
     let mut config = RhoConfig::load();
-    // CLI flags override config file
-    config.theme_name = args.theme.clone();
+    // Priority: CLI flag > .rho/config.toml > embedded default
+    if let Some(ref theme) = args.theme {
+        config.theme_name = theme.clone();
+    }
+    // Always persist the resolved theme to .rho/config.toml
+    if let Err(e) = crate::config::save_theme(&config.theme_name) {
+        tracing::warn!("Failed to save theme: {}", e);
+    }
 
     // Extract LLM settings before moving config into AppState
     let config_llm = config.llm.clone();
 
-    // Resolve LLM settings: CLI/env > config > defaults
-    let effective_model = if args.model != "anthropic/claude-sonnet-4-5-20250929" {
-        args.model.clone()
+    // Apply env var overrides only with --override-with-envs
+    let env_model = if args.override_with_envs { std::env::var("LLM_MODEL").ok() } else { None };
+    let env_api_key = if args.override_with_envs { std::env::var("LLM_API_KEY").ok() } else { None };
+    let env_base_url = if args.override_with_envs { std::env::var("LLM_BASE_URL").ok() } else { None };
+
+    // Resolve LLM settings: env (if --override-with-envs) > config > defaults
+    let effective_model = if let Some(m) = env_model {
+        m
     } else if let Some(ref m) = config_llm.model {
         m.clone()
     } else {
-        args.model.clone()
+        "anthropic/claude-sonnet-4-5-20250929".to_string()
     };
-    let effective_base_url = args.llm_base_url.clone().or(config_llm.base_url.clone());
+    let effective_base_url = env_base_url.or(config_llm.base_url.clone());
 
     // Create application state from config
     let mut state = AppState::with_config(config);
@@ -258,23 +270,29 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     state.llm.model = model;
     state.llm.base_url = effective_base_url.clone();
 
-    // API key: CLI/env > config
-    let llm_api_key = match &args.llm_api_key {
-        Some(key) => {
+    // API key: env (if --override-with-envs) > config
+    let llm_api_key = if let Some(ref key) = env_api_key {
+        state.llm.api_key = key.clone();
+        key.clone()
+    } else if let Some(ref key) = config_llm.api_key {
+        if !key.is_empty() {
             state.llm.api_key = key.clone();
             key.clone()
+        } else {
+            error!("LLM_API_KEY is required. Set via --override-with-envs + LLM_API_KEY env, or /settings.");
+            return Err(anyhow::anyhow!("LLM_API_KEY is required"));
         }
-        None => match &config_llm.api_key {
-            Some(key) if !key.is_empty() => {
-                state.llm.api_key = key.clone();
-                key.clone()
-            }
-            _ => {
-                error!("LLM_API_KEY is required. Set via --llm-api-key, LLM_API_KEY env, or config.toml.");
-                return Err(anyhow::anyhow!("LLM_API_KEY is required"));
-            }
-        },
+    } else {
+        error!("LLM_API_KEY is required. Set via --override-with-envs + LLM_API_KEY env, or /settings.");
+        return Err(anyhow::anyhow!("LLM_API_KEY is required"));
     };
+
+    // Persist env overrides to .rho/config.toml so they survive restarts
+    if args.override_with_envs {
+        if let Err(e) = crate::config::save_llm(&effective_model, &llm_api_key, effective_base_url.as_deref()) {
+            tracing::warn!("Failed to persist LLM settings: {}", e);
+        }
+    }
 
     // Create API client
     let client = AgentServerClient::new(&args.server, args.session_api_key.clone());
@@ -501,6 +519,32 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
                     Err(e) => {
                         tracing::warn!("Failed to fetch conversation stats: {}", e);
                     }
+                }
+            }
+        }
+
+        // Drain message queue — send next queued message when agent becomes idle
+        if !state.message_queue.is_empty()
+            && !state.is_running()
+            && state.conversation_id.is_some()
+        {
+            if let Some(queued_msg) = state.message_queue.pop_front() {
+                info!(
+                    "Sending queued message ({} remaining)",
+                    state.message_queue.len()
+                );
+                state.add_message(crate::state::DisplayMessage::user(&queued_msg));
+                let conv_id = state.conversation_id.unwrap();
+                state.start_timer();
+                state.randomize_spinner();
+                state.execution_status = ExecutionStatus::Running;
+                if let Err(e) = client.send_message(conv_id, &queued_msg, true).await {
+                    error!("Failed to send queued message: {}", e);
+                    state.add_message(crate::state::DisplayMessage::error(format!(
+                        "Failed to send: {}",
+                        e
+                    )));
+                    state.execution_status = ExecutionStatus::Idle;
                 }
             }
         }

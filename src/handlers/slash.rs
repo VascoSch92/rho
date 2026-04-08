@@ -36,6 +36,9 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
                 if let Some(&theme) = state.themes.get(&name) {
                     state.theme = theme;
                     state.theme_name = name.clone();
+                    if let Err(e) = crate::config::save_theme(&name) {
+                        tracing::warn!("Failed to save theme: {}", e);
+                    }
                     state.notify(Notification::info(
                         "Theme Changed",
                         format!("Switched to {} theme", name),

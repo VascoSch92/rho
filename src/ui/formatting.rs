@@ -44,13 +44,34 @@ pub fn format_duration(seconds: u64) -> String {
     }
 }
 
-/// Shorten a path to its last two components: `/a/b/c/d` → `.../c/d`
+/// Return the selector indicator prefix for a selected/unselected item.
+/// Selected items get the indicator followed by a space; unselected get padding.
+pub fn selector_prefix(is_selected: bool, indicator: &str) -> String {
+    if is_selected {
+        format!("{} ", indicator)
+    } else {
+        " ".repeat(indicator.chars().count() + 1)
+    }
+}
+
+/// Shorten a path, replacing the home directory with `~`.
+/// Falls back to last two components if home dir doesn't match.
 pub fn truncate_path(path: &str) -> String {
+    if let Some(home) = dirs_home() {
+        if let Some(rest) = path.strip_prefix(&home) {
+            let rest = rest.strip_prefix('/').unwrap_or(rest);
+            return format!("~/{}", rest);
+        }
+    }
     let parts: Vec<&str> = path.rsplitn(3, '/').collect();
     match parts.len() {
         0 => path.to_string(),
         1 => parts[0].to_string(),
         2 => format!("{}/{}", parts[1], parts[0]),
-        _ => format!(".../{}/{}", parts[1], parts[0]),
+        _ => format!("~/{}/{}", parts[1], parts[0]),
     }
+}
+
+fn dirs_home() -> Option<String> {
+    std::env::var("HOME").ok()
 }

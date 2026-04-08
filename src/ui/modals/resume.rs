@@ -85,7 +85,7 @@ impl Widget for ResumeModal<'_> {
             for (i, conv) in convos.iter().enumerate().take(end).skip(start) {
                 let is_selected = i == selected;
 
-                let indicator = if is_selected { " ▶ " } else { "   " };
+                let indicator = format!(" {}", crate::ui::formatting::selector_prefix(is_selected, &self.state.selector_indicator));
 
                 let title = Self::truncate(&conv.title, 35);
                 let first_msg = if conv.first_message.is_empty() {

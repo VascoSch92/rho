@@ -148,6 +148,9 @@ fn handle_theme_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppC
             Action::Confirm => {
                 state.theme_before_preview = None;
                 state.show_theme_modal = false;
+                if let Err(e) = crate::config::save_theme(&state.theme_name) {
+                    tracing::warn!("Failed to save theme: {}", e);
+                }
             }
             _ => {}
         }

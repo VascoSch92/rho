@@ -191,7 +191,7 @@ impl<'a> MessageListWidget<'a> {
                 for (i, line) in wrapped.iter().enumerate() {
                     if i == 0 {
                         lines.push(Line::from(vec![
-                            Span::styled("> ", style),
+                            Span::styled("* ", style),
                             Span::styled(line.to_string(), style),
                         ]));
                     } else {
@@ -335,6 +335,31 @@ impl Widget for MessageListWidget<'_> {
             }
         }
 
+        // Render queued messages (muted, italic, with ~ prefix)
+        if !self.state.message_queue.is_empty() {
+            let queued_style = Style::default()
+                .fg(t.muted)
+                .add_modifier(Modifier::ITALIC);
+            for queued in &self.state.message_queue {
+                let content_w = content_width.saturating_sub(2);
+                let wrapped = wrap(queued, content_w);
+                for (i, line) in wrapped.iter().enumerate() {
+                    if i == 0 {
+                        all_lines.push(Line::from(vec![
+                            Span::styled("zZz... ", queued_style),
+                            Span::styled(line.to_string(), queued_style),
+                        ]));
+                    } else {
+                        all_lines.push(Line::from(vec![
+                            Span::raw("  "),
+                            Span::styled(line.to_string(), queued_style),
+                        ]));
+                    }
+                }
+                all_lines.push(Line::from(""));
+            }
+        }
+
         // Spinner is rendered separately in the layout, not in the message list
 
         let visible_height = inner_area.height as usize;
@@ -366,13 +391,7 @@ fn build_banner_lines<'a>(state: &AppState, t: &Theme, content_width: usize) -> 
     let bullet = Span::styled("• ", Style::default().fg(t.muted));
 
     let id_display = if let Some(id) = state.conversation_id {
-        let id_str = id.to_string();
-        let short_id = if id_str.len() >= 8 {
-            id_str[..8].to_string()
-        } else {
-            id_str
-        };
-        Span::styled(short_id, Style::default().fg(t.accent))
+        Span::styled(id.to_string(), Style::default().fg(t.accent))
     } else {
         Span::styled("---", Style::default().fg(t.muted))
     };

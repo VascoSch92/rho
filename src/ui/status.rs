@@ -48,17 +48,15 @@ impl Widget for BottomStatusBar<'_> {
         ));
         spans.push(Span::styled(" | ", Style::default().fg(t.muted)));
 
-        // Elapsed time (if running)
-        if self.state.is_running() || self.state.metrics.elapsed_seconds > 0 {
-            spans.push(Span::styled(
-                format!(
-                    "⏱ {}",
-                    super::formatting::format_duration(self.state.metrics.elapsed_seconds)
-                ),
-                Style::default().fg(t.primary),
-            ));
-            spans.push(Span::styled(" | ", Style::default().fg(t.muted)));
-        }
+        // Elapsed time (always visible)
+        spans.push(Span::styled(
+            format!(
+                "⏱ {}",
+                super::formatting::format_duration(self.state.metrics.elapsed_seconds)
+            ),
+            Style::default().fg(t.primary),
+        ));
+        spans.push(Span::styled(" | ", Style::default().fg(t.muted)));
 
         // Model name
         spans.push(Span::styled(
