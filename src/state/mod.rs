@@ -78,6 +78,7 @@ pub struct AppState {
 
     // Modals
     pub show_token_modal: bool,
+    pub token_modal_tab: usize,
     pub show_help_modal: bool,
     pub show_policy_modal: bool,
 
@@ -199,6 +200,7 @@ impl AppState {
             should_exit: false,
             exit_confirmation_pending: false,
             show_token_modal: false,
+            token_modal_tab: 0,
             show_help_modal: false,
             show_policy_modal: false,
             show_command_menu: false,

@@ -2,18 +2,23 @@
 
 A terminal UI for OpenHands, built with [Ratatui](https://ratatui.rs/), that connects to the [OpenHands Agent Server](https://docs.openhands.dev/sdk/guides/agent-server/overview).
 
-Rho can **automatically launch a local Agent Server** if the `dist/openhands-agent-server` binary is present. Otherwise, it connects to whatever `--server` you provide.
+Rho can **automatically launch a local Agent Server** if the `dist/openhands-agent-server/` directory is present. Otherwise, it connects to whatever `--server` you provide.
 
 ## Quickstart
 
-### 1) Provide an LLM API key (required)
+### 1) Configure LLM settings
 
-Rho must send an LLM configuration to the Agent Server when starting conversations.
+On first run, use `/settings` inside the TUI to set your API key, model, and provider. Settings are persisted to `.rho/config.toml`.
+
+Alternatively, use environment variables with the `--override-with-envs` flag:
 
 ```bash
-export LLM_API_KEY="..."              # required
-export LLM_MODEL="openai/gpt-4o"      # optional (default is an Anthropic model)
+export LLM_API_KEY="..."
+export LLM_MODEL="openai/gpt-4o"      # optional (default: anthropic/claude-sonnet-4-5-20250929)
+cargo run -- --override-with-envs
 ```
+
+Environment variables are persisted to `.rho/config.toml` when `--override-with-envs` is used, so you only need the flag once.
 
 ### 2) Run
 
@@ -21,7 +26,7 @@ export LLM_MODEL="openai/gpt-4o"      # optional (default is an Anthropic model)
 cargo run
 ```
 
-If `dist/openhands-agent-server` exists, Rho will launch it automatically. If you pass `--debug`, logs are written to `.rho/rho.log`.
+If `dist/openhands-agent-server/` exists, Rho will launch it automatically. If you pass `--debug`, logs are written to `.rho/rho.log`.
 
 ## Architecture
 
@@ -40,13 +45,13 @@ If `dist/openhands-agent-server` exists, Rho will launch it automatically. If yo
                             │ HTTP/WebSocket
                             ▼
 ┌──────────────────────────────────────────────────────────────┐
-│            Agent Server (dist/openhands-agent-server)        │
+│            Agent Server (dist/openhands-agent-server/)       │
 │  ┌─────────────────────────────────────────────────────┐     │
 │  │  OpenHands SDK: Conversation, Tools, Events         │     │
 │  └─────────────────────────────────────────────────────┘     │
 └──────────────────────────────────────────────────────────────┘
 
-Web mode (`rho web`):
+Web mode (rho web):
 
 ┌──────────────────────────────────────────────────────────────┐
 │                  Browser (xterm.js)                          │
@@ -59,16 +64,16 @@ Web mode (`rho web`):
 │                         ▼                                    │
 │        Rho Web Server (axum + portable-pty)                  │
 │  ┌─────────────────────────────────────────────────────┐     │
-│  │  PTY  ←→  spawns `rho` TUI as subprocess           │     │
+│  │  PTY  <->  spawns rho TUI as subprocess             │     │
 │  └─────────────────────────────────────────────────────┘     │
 └──────────────────────────────────────────────────────────────┘
 
-Headless mode (`rho headless`):
+Headless mode (rho headless):
 
 ┌──────────────────────────────────────────────────────────────┐
 │                   rho headless                               │
 │  ┌─────────────┐    ┌──────────────────────────────────┐     │
-│  │  CLI Args   │───►│        HeadlessRunner            │     │
+│  │  CLI Args   │--->│        HeadlessRunner            │     │
 │  │  (cli.rs)   │    │  - Start conversation            │     │
 │  └─────────────┘    │  - Stream events via WebSocket   │     │
 │                     │  - Print to stdout (text / JSON)  │     │
@@ -86,72 +91,69 @@ Headless mode (`rho headless`):
 
 - **Real-time event streaming** via WebSocket
 - **Action confirmation** policies: always / only-risky / never
-- **Slash commands** (`/help`, `/new`, `/settings`, `/theme`, `/rename`, …)
-- **Local shell shortcuts**: run a command by typing `!<cmd>` (e.g. `!ls`)
+- **Message queue** — send multiple messages while the agent is busy; they execute in order
+- **Slash commands** (`/help`, `/new`, `/settings`, `/theme`, `/resume`, `/rename`, ...)
+- **Local shell shortcuts** — run a command by typing `!<cmd>` (e.g. `!ls`)
 - **Collapsible actions** + `Ctrl+E` expand/collapse all
-- **Status indicators** for connection, execution status, and token usage
-- **Themes** via `--theme` or `/theme`
+- **Status bar** with timer, model, context usage, cost, and token counts
+- **Themes** — 8 built-in themes (rho, dracula, catppuccin, tokyonight, solarized, gruvbox, github, custom), persisted across sessions
+- **Markdown rendering** with headings, lists, code blocks, tables, and inline code
 - **Web mode** — access the TUI from a browser via `rho web`
 - **Headless mode** — run tasks without the TUI via `rho headless`, with JSON output for scripting
 
 ## Prerequisites
 
 - **Rust toolchain** (edition 2021)
-- **Agent Server binary** at `dist/openhands-agent-server` (or an external server)
-- An **LLM API key** (set `LLM_API_KEY`)
+- **Agent Server** — either the bundled binary at `dist/openhands-agent-server/` or an external server
+- An **LLM API key** (configured via `/settings` or `--override-with-envs`)
 
 ## Building
 
-```bash
-# Development build
-cargo build
+### Rho (TUI)
 
-# Release build (optimized)
-cargo build --release
+```bash
+cargo build            # development
+cargo build --release  # optimized
+```
+
+### Agent Server (optional, if not using an external server)
+
+```bash
+bash scripts/build-agent-server.sh
+```
+
+This clones the latest [OpenHands SDK](https://github.com/OpenHands/software-agent-sdk) release, builds a PyInstaller binary, and places it in `scripts/dist/openhands-agent-server/`. Copy it to `dist/`:
+
+```bash
+cp -R scripts/dist/openhands-agent-server dist/openhands-agent-server
 ```
 
 ## Usage
 
-### Embedded server (default if `dist/openhands-agent-server` exists)
+### Embedded server (default)
 
-If the binary is present, Rho will launch it automatically with:
-
-- host/port: derived from `--server` (defaults to `http://127.0.0.1:8000`)
-- data dir: `.rho/` (conversations, bash events, logs)
-
-Run:
+If `dist/openhands-agent-server/` exists, Rho launches it automatically:
 
 ```bash
-cargo run -- --llm-api-key "$LLM_API_KEY"
+cargo run
 ```
 
 ### Connect to an existing Agent Server
 
-Point Rho at a running server:
-
 ```bash
-cargo run -- \
-  --server http://127.0.0.1:8000 \
-  --llm-api-key "$LLM_API_KEY"
+cargo run -- --server http://192.168.1.100:8000
 ```
 
 ### Web mode (browser access)
 
-Rho can serve the full TUI in a browser using xterm.js:
-
 ```bash
-# Start the web server (default: http://127.0.0.1:12000)
-cargo run -- web
-
-# Custom host/port
-cargo run -- web --host 0.0.0.0 --port 8080
+cargo run -- web                              # default: http://127.0.0.1:12000
+cargo run -- web --host 0.0.0.0 --port 8080   # custom host/port
 ```
 
-Open the printed URL in your browser. Each browser tab gets its own independent session. Environment variables (`LLM_API_KEY`, etc.) are forwarded to each session automatically.
+Open the printed URL in your browser. Each tab gets its own independent session.
 
 ### Headless mode (scripting / CI)
-
-Run a task without the TUI — output goes to stdout/stderr:
 
 ```bash
 # Inline task
@@ -172,29 +174,61 @@ Exit codes: `0` success, `1` task error, `2` timeout, `3` connection error.
 ### Common options
 
 ```bash
+# Override LLM settings from environment variables (persisted to .rho/config.toml)
+cargo run -- --override-with-envs
+
 # Server URL
 cargo run -- --server http://192.168.1.100:8000
 
 # Agent Server session auth (header: X-Session-API-Key)
 cargo run -- --session-api-key your-session-key
 
-# Model selection ("provider/model" or just "model")
-cargo run -- --model openai/gpt-4o
-
-# Custom base URL (OpenAI-compatible endpoints)
-cargo run -- --llm-base-url http://localhost:8080/v1
-
 # Workspace directory sent to the agent as the working directory
 cargo run -- --workspace /path/to/repo
 
-# Auto-approve all actions (no confirmation prompts)
-cargo run -- --always-approve
+# Theme (also settable via /theme or .rho/config.toml)
+cargo run -- --theme dracula
 
 # Skip exit confirmation
 cargo run -- --exit-without-confirmation
 
 # Enable debug logging (writes .rho/rho.log)
 cargo run -- --debug
+```
+
+## Configuration
+
+Rho stores user configuration in `.rho/config.toml` (next to the project root). This file is created automatically when you change settings.
+
+**Priority order** (highest to lowest):
+1. CLI flags (`--theme`, `--override-with-envs`)
+2. `.rho/config.toml` (persisted settings)
+3. Embedded defaults (`config.toml` at build time)
+
+Settings that can be configured:
+- **LLM** — provider, model, API key, base URL (via `/settings` or `--override-with-envs`)
+- **Theme** — active theme name (via `/theme` or `--theme`)
+
+The full set of customizations (themes, spinners, keybindings, scroll speed, selector indicator) can be edited in the embedded `config.toml` or overridden in `.rho/config.toml`.
+
+## Themes
+
+8 built-in themes: **rho**, **dracula**, **catppuccin**, **tokyonight**, **solarized**, **gruvbox**, **github**.
+
+Change theme with `/theme` (opens picker) or `/theme <name>`. The selection is persisted.
+
+To add a custom theme, add a section to `.rho/config.toml`:
+
+```toml
+[theme.themes.my_theme]
+primary    = "#e06c75"
+accent     = "#61afef"
+foreground = "#abb2bf"
+background = "reset"
+muted      = "#5c6370"
+border     = "#3e4452"
+error      = "#be5046"
+success    = "#98c379"
 ```
 
 ## Key Bindings
@@ -206,7 +240,7 @@ cargo run -- --debug
 | `Esc` | Pause agent (when running) / close modals |
 | `Ctrl+Q` / `Ctrl+C` | Quit (with confirmation unless `--exit-without-confirmation`) |
 | `Ctrl+E` | Expand/collapse all actions |
-| `↑/↓` | Scroll messages |
+| `Up/Down` | Scroll messages |
 | `PgUp/PgDn` | Scroll faster |
 
 ### Confirmation mode
@@ -215,7 +249,7 @@ When actions require confirmation:
 
 | Key | Action |
 |-----|--------|
-| `←/→` | Select confirm option |
+| `Left/Right` | Select confirm option |
 | `Enter` | Apply selected option |
 | `Y` | Accept |
 | `N` | Reject |
@@ -228,6 +262,7 @@ When actions require confirmation:
 |---------|-------------|
 | `/help` | Show help modal |
 | `/new` | Start a new conversation (clears UI state) |
+| `/resume` | Resume a previous conversation |
 | `/rename <name>` | Rename the current conversation |
 | `/pause` | Pause the agent |
 | `/usage` | Show token usage details |
@@ -243,19 +278,24 @@ Prefix any input with `!` to run it locally and show output in the message log:
 - `!pwd`
 - `!ls -la`
 
-## Data & logs
+## Data & Configuration
 
-Rho creates a `.rho/` directory at the repository root and uses it for:
+Rho uses a `.rho/` directory at the project root:
 
-- `.rho/conversations/` (Agent Server conversation storage)
-- `.rho/bash_events/` (Agent Server bash event logs)
-- `.rho/rho.log` (when `--debug` is enabled)
+| Path | Description |
+|------|-------------|
+| `.rho/config.toml` | User settings (LLM, theme) |
+| `.rho/conversations/` | Agent Server conversation storage |
+| `.rho/bash_events/` | Agent Server bash event logs |
+| `.rho/rho.log` | Debug log (when `--debug` is enabled) |
 
 ## Project Structure
 
 ```
 dist/
-└── openhands-agent-server   # Agent Server binary
+└── openhands-agent-server/  # Agent Server binary (onedir PyInstaller)
+scripts/
+└── build-agent-server.sh    # Builds the Agent Server from source
 src/
 ├── main.rs              # Entry point, terminal setup, embedded server launcher
 ├── cli.rs               # CLI args and subcommands (clap)
@@ -263,11 +303,13 @@ src/
 ├── handlers/            # Key handling, slash commands, settings edits, command execution
 ├── state/               # App state + message models
 ├── ui/                  # Ratatui UI (widgets, modals, markdown rendering)
-├── config/              # Theme definitions
+├── config/              # Configuration loading, themes, keybindings
+├── events/              # Event types (mirroring OpenHands SDK events)
 ├── headless/            # Headless runner (no TUI, stdout output)
 └── web/                 # Web server (axum + PTY + xterm.js frontend)
 web/
 └── index.html           # xterm.js frontend (embedded at compile time)
+config.toml              # Default configuration (embedded in binary)
 ```
 
 ## Development

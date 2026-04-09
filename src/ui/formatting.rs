@@ -23,11 +23,17 @@ pub fn format_tokens_detailed(tokens: u64) -> String {
 }
 
 /// Format a cost value as a dollar string.
+/// - Exactly `0` → `$0.0`
+/// - Less than `0.001` → 4 decimal places
+/// - Less than `0.01` → 3 decimal places
+/// - Otherwise → 2 decimal places
 pub fn format_cost(cost: f64) -> String {
-    if cost < 0.001 {
-        format!("${:.6}", cost)
-    } else if cost < 0.01 {
+    if cost == 0.0 {
+        "$0.0".to_string()
+    } else if cost < 0.001 {
         format!("${:.4}", cost)
+    } else if cost < 0.01 {
+        format!("${:.3}", cost)
     } else {
         format!("${:.2}", cost)
     }

@@ -42,7 +42,7 @@ pub fn handle_key_event(
 
     // ── Modal dispatch ───────────────────────────────────────────────────
     if state.show_token_modal {
-        return handle_dismiss_modal(state, key, |s| s.show_token_modal = false);
+        return handle_token_modal(state, key);
     }
     if state.show_help_modal {
         return handle_dismiss_modal(state, key, |s| s.show_help_modal = false);
@@ -92,6 +92,30 @@ fn handle_dismiss_modal(
     if let Some(action) = state.keybindings.modal.get(&key) {
         if matches!(action, Action::Dismiss | Action::Confirm) {
             close(state);
+        }
+    }
+    None
+}
+
+/// Token usage modal with tabs (Stats / Chart).
+fn handle_token_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppCommand> {
+    const NUM_TABS: usize = 2;
+    // Tab switching: Tab / Left / Right
+    match key.code {
+        KeyCode::Tab | KeyCode::Right => {
+            state.token_modal_tab = (state.token_modal_tab + 1) % NUM_TABS;
+            return None;
+        }
+        KeyCode::BackTab | KeyCode::Left => {
+            state.token_modal_tab = (state.token_modal_tab + NUM_TABS - 1) % NUM_TABS;
+            return None;
+        }
+        _ => {}
+    }
+    if let Some(action) = state.keybindings.modal.get(&key) {
+        if matches!(action, Action::Dismiss | Action::Confirm) {
+            state.show_token_modal = false;
+            state.token_modal_tab = 0;
         }
     }
     None

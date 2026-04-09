@@ -7,6 +7,7 @@ mod help;
 mod resume;
 pub mod settings;
 mod startup;
+pub mod tabs;
 mod theme;
 mod token;
 
