@@ -62,6 +62,14 @@ async fn main() -> Result<()> {
     }
 
     let args = cli.tui;
+
+    // `rho --resume` (no value) prints the list of recent conversations and exits
+    // without starting the server. `--last` is handled later inside the TUI path.
+    if matches!(args.resume.as_deref(), Some("")) && !args.last {
+        print_recent_conversations();
+        return Ok(());
+    }
+
     let rho_dir = ensure_rho_dir();
 
     // Initialize logging - write to file when debug is enabled
@@ -186,6 +194,111 @@ fn stop_agent_server(server_process: &mut Option<Child>) {
 
         let _ = child.wait();
     }
+}
+
+/// Format an ISO-8601 timestamp as a relative age string.
+///
+/// - `<` 1 hour → `"Xm ago"`
+/// - `<` 1 day → `"Xh ago"`
+/// - yesterday → `"yesterday"`
+/// - `<` 7 days → `"X days ago"`
+/// - older → `"YYYY-MM-DD"`
+fn format_relative_time(iso: &str) -> String {
+    use chrono::{DateTime, Local, NaiveDate, Utc};
+    if iso.is_empty() {
+        return "unknown".to_string();
+    }
+    let parsed = DateTime::parse_from_rfc3339(iso)
+        .map(|d| d.with_timezone(&Utc))
+        .or_else(|_| {
+            DateTime::parse_from_str(iso, "%Y-%m-%dT%H:%M:%S%.f").map(|d| d.with_timezone(&Utc))
+        })
+        .or_else(|_| {
+            chrono::NaiveDateTime::parse_from_str(iso, "%Y-%m-%dT%H:%M:%S%.f")
+                .map(|ndt| DateTime::<Utc>::from_naive_utc_and_offset(ndt, Utc))
+        });
+    let Ok(when) = parsed else {
+        return iso.to_string();
+    };
+
+    let now = Utc::now();
+    let delta = now.signed_duration_since(when);
+    if delta.num_seconds() < 0 {
+        return "just now".to_string();
+    }
+    let minutes = delta.num_minutes();
+    let hours = delta.num_hours();
+
+    if minutes < 1 {
+        "just now".to_string()
+    } else if minutes < 60 {
+        format!("{}m ago", minutes)
+    } else if hours < 24 {
+        format!("{}h ago", hours)
+    } else {
+        // Compare calendar dates (in local tz) for "yesterday"
+        let local_when = when.with_timezone(&Local).date_naive();
+        let local_today: NaiveDate = Local::now().date_naive();
+        let diff_days = (local_today - local_when).num_days();
+        if diff_days == 1 {
+            "yesterday".to_string()
+        } else if diff_days < 7 {
+            format!("{} days ago", diff_days)
+        } else {
+            local_when.format("%Y-%m-%d").to_string()
+        }
+    }
+}
+
+/// Print a formatted list of recent conversations for `--resume` without an ID.
+fn print_recent_conversations() {
+    const MAX_ENTRIES: usize = 15;
+    const RULE: &str =
+        "────────────────────────────────────────────────────────────────────────────────";
+
+    let entries = state::conversations::scan_conversations();
+    if entries.is_empty() {
+        println!("\x1b[1;33mNo conversations found.\x1b[0m");
+        println!("Start a new one with: \x1b[1mrho\x1b[0m");
+        println!();
+        return;
+    }
+
+    println!("\x1b[1;33mRecent Conversations:\x1b[0m");
+    println!("\x1b[2m{}\x1b[0m", RULE);
+
+    for (i, conv) in entries.iter().take(MAX_ENTRIES).enumerate() {
+        let age = format_relative_time(&conv.updated_at);
+        let preview = if conv.first_message.trim().is_empty() {
+            "(No user message)".to_string()
+        } else {
+            let line = conv.first_message.lines().next().unwrap_or("");
+            if line.chars().count() > 72 {
+                let trunc: String = line.chars().take(69).collect();
+                format!("{}...", trunc)
+            } else {
+                line.to_string()
+            }
+        };
+
+        println!(
+            "{:>3}. \x1b[1;34m{}\x1b[0m \x1b[2m({})\x1b[0m",
+            i + 1,
+            conv.id,
+            age
+        );
+        println!("     \x1b[2m{}\x1b[0m", preview);
+        if i + 1 < entries.len().min(MAX_ENTRIES) {
+            println!();
+        }
+    }
+
+    println!("\x1b[2m{}\x1b[0m", RULE);
+    println!("To resume a conversation, use: \x1b[1mrho --resume <conversation-id>\x1b[0m");
+    if entries.len() > 1 {
+        println!("Or resume the most recent with:  \x1b[1mrho --resume --last\x1b[0m");
+    }
+    println!();
 }
 
 /// Print goodbye message with optional resume instructions.
@@ -345,8 +458,47 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     // Event stream for WebSocket events
     let mut event_stream: Option<EventStream> = None;
 
-    // Handle --resume flag: replay events and connect WebSocket
-    if let Some(conv_id) = args.resume {
+    // Resolve the conversation to resume:
+    // - `--last` (or `--resume --last`) picks the most recent conversation on disk
+    // - `--resume <id>` uses the supplied id directly
+    // - `--resume` with no value is equivalent to `--last`
+    let resume_id: Option<uuid::Uuid> = {
+        // Did the user pass `--resume <id>` with a non-empty value?
+        let explicit_id = args.resume.as_deref().filter(|s| !s.is_empty());
+        let wants_latest = args.last || matches!(args.resume.as_deref(), Some(""));
+
+        if let Some(id_str) = explicit_id {
+            match uuid::Uuid::parse_str(id_str) {
+                Ok(id) => Some(id),
+                Err(e) => {
+                    error!("Invalid conversation id '{}': {}", id_str, e);
+                    return Err(anyhow::anyhow!("Invalid conversation id: {}", e));
+                }
+            }
+        } else if wants_latest {
+            match state::conversations::scan_conversations().first() {
+                Some(conv) => match uuid::Uuid::parse_str(&conv.id) {
+                    Ok(id) => {
+                        println!("Resuming latest conversation: {}", id);
+                        Some(id)
+                    }
+                    Err(e) => {
+                        error!("Invalid conversation id on disk: {}", e);
+                        return Err(anyhow::anyhow!("Corrupted conversation id: {}", e));
+                    }
+                },
+                None => {
+                    error!("No conversations found to resume.");
+                    return Err(anyhow::anyhow!("No conversations found to resume."));
+                }
+            }
+        } else {
+            None
+        }
+    };
+
+    // Handle --resume / --last: replay events and connect WebSocket
+    if let Some(conv_id) = resume_id {
         state.reset_conversation();
         info!("Resuming conversation {}", conv_id);
         handlers::resume_conversation(&mut state, &client, &mut event_stream, conv_id).await;

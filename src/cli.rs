@@ -2,7 +2,6 @@
 
 use clap::builder::styling::{AnsiColor, Effects, Styles};
 use clap::{Parser, Subcommand};
-use uuid::Uuid;
 
 use crate::state::LlmProvider;
 
@@ -127,9 +126,13 @@ pub struct Args {
     #[arg(short, long)]
     pub workspace: Option<String>,
 
-    /// Resume an existing conversation
-    #[arg(short, long)]
-    pub resume: Option<Uuid>,
+    /// Resume an existing conversation by ID. Without a value, lists recent conversations.
+    #[arg(short, long, value_name = "ID", num_args = 0..=1, default_missing_value = "")]
+    pub resume: Option<String>,
+
+    /// Resume the most recent conversation (standalone or combined with --resume)
+    #[arg(long)]
+    pub last: bool,
 
     /// Permission mode for action confirmation
     #[arg(long, value_enum, default_value_t = crate::state::ConfirmationPolicy::AlwaysConfirm)]
