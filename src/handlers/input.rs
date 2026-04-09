@@ -49,7 +49,7 @@ pub fn handle_key_event(
         return handle_skills_modal(state, key);
     }
     if state.show_help_modal {
-        return handle_dismiss_modal(state, key, |s| s.show_help_modal = false);
+        return handle_help_modal(state, key);
     }
     if state.show_policy_modal {
         return handle_policy_modal(state, key);
@@ -158,20 +158,6 @@ fn handle_file_menu(state: &mut AppState, key: event::KeyEvent) -> Option<Option
 
 // ── Modal handlers ──────────────────────────────────────────────────────────
 
-/// Simple dismiss-only modal (token usage, help).
-fn handle_dismiss_modal(
-    state: &mut AppState,
-    key: event::KeyEvent,
-    close: impl FnOnce(&mut AppState),
-) -> Option<AppCommand> {
-    if let Some(action) = state.keybindings.modal.get(&key) {
-        if matches!(action, Action::Dismiss | Action::Confirm) {
-            close(state);
-        }
-    }
-    None
-}
-
 /// Skills modal — tabs + compact list + inline detail view.
 fn handle_skills_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppCommand> {
     const NUM_TABS: usize = 4;
@@ -252,6 +238,29 @@ fn handle_skills_modal(state: &mut AppState, key: event::KeyEvent) -> Option<App
             return None;
         }
         _ => {}
+    }
+    None
+}
+
+/// Help modal with tabs (Commands / Shortcuts).
+fn handle_help_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppCommand> {
+    const NUM_TABS: usize = 2;
+    match key.code {
+        KeyCode::Tab | KeyCode::Right => {
+            state.help_modal_tab = (state.help_modal_tab + 1) % NUM_TABS;
+            return None;
+        }
+        KeyCode::BackTab | KeyCode::Left => {
+            state.help_modal_tab = (state.help_modal_tab + NUM_TABS - 1) % NUM_TABS;
+            return None;
+        }
+        _ => {}
+    }
+    if let Some(action) = state.keybindings.modal.get(&key) {
+        if matches!(action, Action::Dismiss | Action::Confirm) {
+            state.show_help_modal = false;
+            state.help_modal_tab = 0;
+        }
     }
     None
 }

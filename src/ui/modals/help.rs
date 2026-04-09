@@ -9,8 +9,11 @@ use ratatui::{
 };
 
 use super::frame::render_modal;
+use super::tabs::build_tabbed_lines;
 use crate::config::theme::Theme;
 use crate::state::{AppState, ConfirmationPolicy};
+
+const TABS: &[&str] = &["Commands", "Shortcuts"];
 
 // ── Help line builders ──────────────────────────────────────────────────────
 
@@ -81,21 +84,20 @@ const TEXT_SELECTION: &[(&str, &str)] = &[
     ("Linux", "Shift"),
 ];
 
-impl Widget for HelpModal<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let t = &self.state.theme;
-        let mut lines: Vec<Line> = Vec::new();
+impl HelpModal<'_> {
+    /// Commands tab: slash commands.
+    fn commands_pane(t: &Theme) -> Vec<Line<'static>> {
+        COMMANDS
+            .iter()
+            .map(|(key, desc)| help_line(key, desc, t.primary, t.foreground))
+            .collect()
+    }
 
-        lines.push(Line::from(""));
+    /// Shortcuts tab: input shortcuts + key bindings + text selection.
+    fn shortcuts_pane(t: &Theme) -> Vec<Line<'static>> {
+        let mut lines: Vec<Line<'static>> = Vec::new();
 
-        // Slash commands
-        for (key, desc) in COMMANDS {
-            lines.push(help_line(key, desc, t.primary, t.foreground));
-        }
-
-        lines.push(Line::from(""));
-
-        // Shortcuts
+        // Input shortcuts (@, !)
         for (key, desc) in SHORTCUTS {
             lines.push(help_line(key, desc, t.primary, t.foreground));
         }
@@ -128,17 +130,27 @@ impl Widget for HelpModal<'_> {
             ));
         }
 
-        lines.push(Line::from(""));
+        lines
+    }
+}
 
-        // Close hint
-        lines.push(Line::from(vec![
-            Span::styled("  Press ", Style::default().fg(t.muted)),
+impl Widget for HelpModal<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let t = &self.state.theme;
+
+        let panes = vec![Self::commands_pane(t), Self::shortcuts_pane(t)];
+
+        let footer = vec![Line::from(vec![
+            Span::styled("  ", Style::default()),
+            Span::styled("Tab", Style::default().fg(t.primary)),
+            Span::styled("/", Style::default().fg(t.muted)),
+            Span::styled("←→", Style::default().fg(t.primary)),
+            Span::styled(" switch tab  ", Style::default().fg(t.muted)),
             Span::styled("Esc", Style::default().fg(t.primary)),
-            Span::styled(" or ", Style::default().fg(t.muted)),
-            Span::styled("Enter", Style::default().fg(t.primary)),
-            Span::styled(" to close", Style::default().fg(t.muted)),
-        ]));
+            Span::styled(" close", Style::default().fg(t.muted)),
+        ])];
 
+        let lines = build_tabbed_lines(TABS, self.state.help_modal_tab, panes, footer, t);
         render_modal(area, buf, Self::TITLE, lines, t);
     }
 }

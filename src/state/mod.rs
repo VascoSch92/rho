@@ -89,6 +89,7 @@ pub struct AppState {
     pub skills_loading: bool,
     pub skills_error: Option<String>,
     pub show_help_modal: bool,
+    pub help_modal_tab: usize,
     pub show_policy_modal: bool,
 
     // Command menu state
@@ -223,6 +224,7 @@ impl AppState {
             skills_loading: false,
             skills_error: None,
             show_help_modal: false,
+            help_modal_tab: 0,
             show_policy_modal: false,
             show_command_menu: false,
             command_menu_selected: 0,
