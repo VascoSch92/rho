@@ -44,6 +44,9 @@ pub fn handle_key_event(
     if state.show_token_modal {
         return handle_token_modal(state, key);
     }
+    if state.show_skills_modal {
+        return handle_skills_modal(state, key);
+    }
     if state.show_help_modal {
         return handle_dismiss_modal(state, key, |s| s.show_help_modal = false);
     }
@@ -93,6 +96,90 @@ fn handle_dismiss_modal(
         if matches!(action, Action::Dismiss | Action::Confirm) {
             close(state);
         }
+    }
+    None
+}
+
+/// Skills modal — tabs + compact list + inline detail view.
+fn handle_skills_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppCommand> {
+    const NUM_TABS: usize = 4;
+
+    // Detail view: only Esc (return to list) is handled
+    if state.skill_detail_open {
+        if let KeyCode::Esc = key.code {
+            state.skill_detail_open = false;
+        }
+        return None;
+    }
+
+    // Count skills in the active tab for clamping navigation
+    let tab_count = {
+        let tab = state.skills_modal_tab;
+        state
+            .skills
+            .iter()
+            .filter(|s| match tab {
+                0 => true,
+                1 => s
+                    .source
+                    .as_deref()
+                    .map(|src| src.to_lowercase().contains("user"))
+                    .unwrap_or(false),
+                2 => s
+                    .source
+                    .as_deref()
+                    .map(|src| src.to_lowercase().contains("project"))
+                    .unwrap_or(false),
+                3 => s
+                    .source
+                    .as_deref()
+                    .map(|src| {
+                        let l = src.to_lowercase();
+                        l.contains("public") || l.contains("marketplace")
+                    })
+                    .unwrap_or(false),
+                _ => true,
+            })
+            .count()
+    };
+
+    match key.code {
+        KeyCode::Tab | KeyCode::Right => {
+            state.skills_modal_tab = (state.skills_modal_tab + 1) % NUM_TABS;
+            state.skills_modal_selected = 0;
+            return None;
+        }
+        KeyCode::BackTab | KeyCode::Left => {
+            state.skills_modal_tab = (state.skills_modal_tab + NUM_TABS - 1) % NUM_TABS;
+            state.skills_modal_selected = 0;
+            return None;
+        }
+        KeyCode::Up => {
+            state.skills_modal_selected = state.skills_modal_selected.saturating_sub(1);
+            return None;
+        }
+        KeyCode::Down => {
+            if tab_count > 0 {
+                state.skills_modal_selected = (state.skills_modal_selected + 1).min(tab_count - 1);
+            }
+            return None;
+        }
+        KeyCode::Enter => {
+            if tab_count > 0 {
+                state.skill_detail_open = true;
+            }
+            return None;
+        }
+        KeyCode::Char('r') | KeyCode::Char('R') => {
+            return Some(AppCommand::SyncSkills);
+        }
+        KeyCode::Esc => {
+            state.show_skills_modal = false;
+            state.skills_modal_tab = 0;
+            state.skills_modal_selected = 0;
+            return None;
+        }
+        _ => {}
     }
     None
 }

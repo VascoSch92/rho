@@ -18,6 +18,14 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
             state.show_token_modal = true;
             None
         }
+        Some("skills") => {
+            state.show_skills_modal = true;
+            state.skills_modal_tab = 0;
+            state.skills_modal_selected = 0;
+            state.skill_detail_open = false;
+            // Trigger initial load
+            Some(AppCommand::LoadSkills)
+        }
         Some("settings") => {
             state.settings.show = true;
             None

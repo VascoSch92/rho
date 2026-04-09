@@ -11,7 +11,7 @@ use super::{
     messages::MessageListWidget,
     modals::{
         ConfirmationPanel, ExitConfirmationModal, HelpModal, PolicyModal, ResumeModal,
-        SettingsModal, StartupModal, ThemeModal, TokenUsageModal,
+        SettingsModal, SkillsModal, StartupModal, ThemeModal, TokenUsageModal,
     },
     spinner::{spinner_height, SpinnerWidget},
     status::{BottomStatusBar, NotificationWidget},
@@ -60,6 +60,11 @@ pub fn render(frame: &mut Frame, state: &AppState) {
     // Token usage modal
     if state.show_token_modal {
         frame.render_widget(TokenUsageModal::new(state), area);
+    }
+
+    // Skills modal (handles both list and detail views internally)
+    if state.show_skills_modal {
+        frame.render_widget(SkillsModal::new(state), area);
     }
 
     // Help modal

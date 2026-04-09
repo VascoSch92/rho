@@ -209,6 +209,47 @@ pub struct StartConversationRequest {
 /// Health check response - server returns plain "OK" string
 pub struct HealthResponse {}
 
+// ── Skills ──────────────────────────────────────────────────────────────────
+
+/// Request to list loaded skills.
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct SkillsRequest {
+    pub load_public: bool,
+    pub load_user: bool,
+    pub load_project: bool,
+    pub load_org: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_dir: Option<String>,
+}
+
+/// Skill metadata returned by `POST /skills`.
+#[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
+pub struct SkillInfo {
+    pub name: String,
+    #[serde(default, rename = "type")]
+    pub skill_type: Option<String>,
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub triggers: Vec<String>,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub is_agentskills_format: Option<bool>,
+}
+
+/// Response from `POST /skills`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SkillsResponse {
+    #[serde(default)]
+    pub skills: Vec<SkillInfo>,
+    #[serde(default)]
+    pub sources: std::collections::HashMap<String, u64>,
+}
+
 /// Agent Server HTTP client
 #[derive(Clone)]
 pub struct AgentServerClient {
@@ -437,5 +478,42 @@ impl AgentServerClient {
             .replace("http://", "ws://")
             .replace("https://", "wss://");
         format!("{}/sockets/events/{}", ws_base, conversation_id)
+    }
+
+    /// List loaded skills from the server.
+    /// POSTs to `/api/skills` with load flags and an optional project directory.
+    pub async fn list_skills(&self, request: SkillsRequest) -> Result<SkillsResponse> {
+        let resp = self
+            .request(reqwest::Method::POST, "/api/skills")
+            .json(&request)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(ClientError::Server {
+                status: resp.status().as_u16(),
+                message: resp.text().await.unwrap_or_default(),
+            });
+        }
+
+        Ok(resp.json().await?)
+    }
+
+    /// Sync the public skills marketplace (git-pulls `OpenHands/extensions`).
+    /// POSTs to `/api/skills/sync`.
+    pub async fn sync_skills(&self) -> Result<()> {
+        let resp = self
+            .request(reqwest::Method::POST, "/api/skills/sync")
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(ClientError::Server {
+                status: resp.status().as_u16(),
+                message: resp.text().await.unwrap_or_default(),
+            });
+        }
+
+        Ok(())
     }
 }

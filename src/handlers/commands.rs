@@ -346,6 +346,62 @@ pub async fn process_command(
             ));
         }
 
+        AppCommand::LoadSkills => {
+            state.skills_loading = true;
+            state.skills_error = None;
+            let request = crate::client::SkillsRequest {
+                load_public: true,
+                load_user: true,
+                load_project: true,
+                load_org: false,
+                project_dir: Some(state.workspace_path.clone()),
+            };
+            match client.list_skills(request).await {
+                Ok(resp) => {
+                    info!(
+                        "Loaded {} skills from {} sources",
+                        resp.skills.len(),
+                        resp.sources.len()
+                    );
+                    state.skills = resp.skills;
+                    state.skills_loading = false;
+                    state.skills_modal_selected = 0;
+                }
+                Err(e) => {
+                    error!("Failed to load skills: {}", e);
+                    state.skills_error = Some(format!("{}", e));
+                    state.skills_loading = false;
+                }
+            }
+        }
+
+        AppCommand::SyncSkills => {
+            state.skills_loading = true;
+            state.skills_error = None;
+            match client.sync_skills().await {
+                Ok(()) => {
+                    state.notify(Notification::info("Skills", "Public marketplace synced"));
+                    // Reload skills after sync
+                    let request = crate::client::SkillsRequest {
+                        load_public: true,
+                        load_user: true,
+                        load_project: true,
+                        load_org: false,
+                        project_dir: Some(state.workspace_path.clone()),
+                    };
+                    if let Ok(resp) = client.list_skills(request).await {
+                        state.skills = resp.skills;
+                    }
+                    state.skills_loading = false;
+                }
+                Err(e) => {
+                    error!("Failed to sync skills: {}", e);
+                    state.skills_error = Some(format!("{}", e));
+                    state.skills_loading = false;
+                }
+            }
+        }
+
         AppCommand::ForceQuit => {
             state.should_exit = true;
             return Ok(true);

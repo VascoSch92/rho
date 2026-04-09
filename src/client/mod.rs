@@ -9,7 +9,8 @@ mod websocket;
 
 pub use api::{
     AgentConfig, AgentServerClient, ExecutionStatus, LLMConfig, LocalWorkspace, SecurityAnalyzer,
-    SendMessageRequest, ServerConfirmationPolicy, StartConversationRequest,
+    SendMessageRequest, ServerConfirmationPolicy, SkillInfo, SkillsRequest,
+    StartConversationRequest,
 };
 pub use websocket::EventStream;
 
