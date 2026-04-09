@@ -29,6 +29,7 @@ pub fn handle_key_event(
                     return Some(AppCommand::CancelQuit);
                 } else {
                     state.exit_confirmation_pending = true;
+                    state.exit_confirmation_selected = 0;
                     return None;
                 }
             }
@@ -67,7 +68,7 @@ pub fn handle_key_event(
         return None;
     }
     if state.exit_confirmation_pending {
-        return handle_exit_confirmation(key);
+        return handle_exit_confirmation(state, key);
     }
     if state.input_mode == InputMode::Confirmation {
         return handle_confirmation_mode(state, key);
@@ -329,11 +330,23 @@ fn handle_resume_modal(state: &mut AppState, key: event::KeyEvent) -> Option<App
     None
 }
 
-/// Exit confirmation (y/n).
-fn handle_exit_confirmation(key: event::KeyEvent) -> Option<AppCommand> {
+/// Exit confirmation — arrow navigation + Y/N shortcuts.
+fn handle_exit_confirmation(state: &mut AppState, key: event::KeyEvent) -> Option<AppCommand> {
     match key.code {
+        // Y/N shortcuts still work directly
         KeyCode::Char('y') | KeyCode::Char('Y') => Some(AppCommand::ForceQuit),
         KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => Some(AppCommand::CancelQuit),
+        // Arrow navigation between Yes (1) and No (0)
+        KeyCode::Left | KeyCode::Right | KeyCode::Tab | KeyCode::BackTab => {
+            state.exit_confirmation_selected = 1 - state.exit_confirmation_selected;
+            None
+        }
+        // Enter applies the current selection
+        KeyCode::Enter => Some(if state.exit_confirmation_selected == 1 {
+            AppCommand::ForceQuit
+        } else {
+            AppCommand::CancelQuit
+        }),
         _ => None,
     }
 }

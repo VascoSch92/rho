@@ -75,6 +75,8 @@ pub struct AppState {
     // Exit flag
     pub should_exit: bool,
     pub exit_confirmation_pending: bool,
+    /// Selected option in the exit confirmation modal: 0 = No (stay), 1 = Yes (exit).
+    pub exit_confirmation_selected: usize,
 
     // Modals
     pub show_token_modal: bool,
@@ -206,6 +208,7 @@ impl AppState {
             replaying: false,
             should_exit: false,
             exit_confirmation_pending: false,
+            exit_confirmation_selected: 0,
             show_token_modal: false,
             token_modal_tab: 0,
             show_skills_modal: false,

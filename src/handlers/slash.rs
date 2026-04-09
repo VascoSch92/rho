@@ -100,6 +100,7 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
         }
         Some("exit") | Some("quit") => {
             state.exit_confirmation_pending = true;
+            state.exit_confirmation_selected = 0;
             None
         }
         _ => {

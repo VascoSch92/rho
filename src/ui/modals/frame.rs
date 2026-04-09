@@ -2,7 +2,7 @@
 
 use ratatui::{
     buffer::Buffer,
-    layout::Rect,
+    layout::{Alignment, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Widget},
@@ -18,6 +18,28 @@ pub fn render_modal(
     title: &str,
     lines: Vec<Line<'_>>,
     theme: &Theme,
+) {
+    render_modal_inner(area, buf, title, lines, theme, Alignment::Left);
+}
+
+/// Like `render_modal` but centers every line horizontally inside the modal.
+pub fn render_modal_centered(
+    area: Rect,
+    buf: &mut Buffer,
+    title: &str,
+    lines: Vec<Line<'_>>,
+    theme: &Theme,
+) {
+    render_modal_inner(area, buf, title, lines, theme, Alignment::Center);
+}
+
+fn render_modal_inner(
+    area: Rect,
+    buf: &mut Buffer,
+    title: &str,
+    lines: Vec<Line<'_>>,
+    theme: &Theme,
+    alignment: Alignment,
 ) {
     // Compute width from the longest line (+ 2 for border + 2 for padding)
     let title_width = title.chars().count() + 4; // " Title " + border
@@ -58,6 +80,6 @@ pub fn render_modal(
     let inner = block.inner(modal_area);
     block.render(modal_area, buf);
 
-    let paragraph = Paragraph::new(lines);
+    let paragraph = Paragraph::new(lines).alignment(alignment);
     paragraph.render(inner, buf);
 }

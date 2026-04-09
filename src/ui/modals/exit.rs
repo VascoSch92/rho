@@ -8,7 +8,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use super::frame::render_modal;
+use super::frame::render_modal_centered;
 use crate::state::AppState;
 
 pub struct ExitConfirmationModal<'a> {
@@ -27,29 +27,56 @@ impl Widget for ExitConfirmationModal<'_> {
         }
 
         let t = &self.state.theme;
+        let selected = self.state.exit_confirmation_selected;
+
+        // 0 = No, 1 = Yes
+        let yes_selected = selected == 1;
+        let no_selected = selected == 0;
+
+        // Pill style (like Stats/Chart tabs): selected has the border bg + bold.
+        // Inactive is muted. Selected Yes keeps its red fg, selected No keeps green.
+        let yes_style = if yes_selected {
+            Style::default()
+                .fg(t.error)
+                .bg(t.border)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(t.muted)
+        };
+        let no_style = if no_selected {
+            Style::default()
+                .fg(t.success)
+                .bg(t.border)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(t.muted)
+        };
 
         let lines = vec![
             Line::from(""),
             Line::from(Span::styled(
-                "  Are you sure you want to exit?",
+                "Are you sure you want to exit?",
                 Style::default().fg(t.foreground),
             )),
             Line::from(""),
             Line::from(vec![
-                Span::styled("  Press ", Style::default().fg(t.muted)),
-                Span::styled(
-                    "Y",
-                    Style::default().fg(t.error).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" to exit, ", Style::default().fg(t.muted)),
-                Span::styled(
-                    "N",
-                    Style::default().fg(t.success).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(" to stay", Style::default().fg(t.muted)),
+                Span::styled(" Yes ", yes_style),
+                Span::styled("   ", Style::default()),
+                Span::styled(" No ", no_style),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("←→", Style::default().fg(t.primary)),
+                Span::styled(" select  ", Style::default().fg(t.muted)),
+                Span::styled("Enter", Style::default().fg(t.primary)),
+                Span::styled(" confirm  ", Style::default().fg(t.muted)),
+                Span::styled("Y", Style::default().fg(t.primary)),
+                Span::styled("/", Style::default().fg(t.muted)),
+                Span::styled("N", Style::default().fg(t.primary)),
+                Span::styled(" shortcut", Style::default().fg(t.muted)),
             ]),
         ];
 
-        render_modal(area, buf, Self::TITLE, lines, t);
+        render_modal_centered(area, buf, Self::TITLE, lines, t);
     }
 }
