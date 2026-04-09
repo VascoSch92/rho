@@ -81,8 +81,79 @@ pub fn handle_key_event(
         }
     }
 
+    // ── File menu ───────────────────────────────────────────────────────
+    if state.show_file_menu {
+        if let Some(cmd) = handle_file_menu(state, key) {
+            return cmd;
+        }
+    }
+
     // ── Normal input ────────────────────────────────────────────────────
-    handle_normal_input(state, key)
+    let cmd = handle_normal_input(state, key);
+    // Refresh the file menu visibility based on the current buffer/cursor
+    refresh_file_menu(state);
+    cmd
+}
+
+/// Update `show_file_menu` based on whether the cursor is inside an `@...` token.
+fn refresh_file_menu(state: &mut AppState) {
+    let has_token =
+        crate::ui::file_menu::parse_token(&state.input_buffer, state.cursor_position).is_some();
+    if has_token {
+        let entries = crate::ui::file_menu::current_entries(state);
+        if !entries.is_empty() {
+            if !state.show_file_menu {
+                state.file_menu_selected = 0;
+            }
+            // Clamp selection to the new list size
+            state.file_menu_selected = state.file_menu_selected.min(entries.len() - 1);
+            state.show_file_menu = true;
+            return;
+        }
+    }
+    state.show_file_menu = false;
+    state.file_menu_selected = 0;
+}
+
+/// File menu navigation (Up/Down/Tab/Enter/Esc). Returns `Some(None)` to
+/// consume the key, `Some(Some(cmd))` to return a command, or `None` to fall
+/// through to normal input.
+fn handle_file_menu(state: &mut AppState, key: event::KeyEvent) -> Option<Option<AppCommand>> {
+    let entries = crate::ui::file_menu::current_entries(state);
+    if entries.is_empty() {
+        return None;
+    }
+    match key.code {
+        KeyCode::Up => {
+            state.file_menu_selected = state.file_menu_selected.saturating_sub(1);
+            Some(None)
+        }
+        KeyCode::Down => {
+            state.file_menu_selected = (state.file_menu_selected + 1).min(entries.len() - 1);
+            Some(None)
+        }
+        KeyCode::Tab | KeyCode::Enter => {
+            if let Some(entry) = entries.get(state.file_menu_selected) {
+                crate::ui::file_menu::apply_selection(state, entry);
+                // After inserting a file (not a directory), close the menu.
+                // For a directory, keep it open so the user can drill down.
+                if !entry.is_dir {
+                    state.show_file_menu = false;
+                    state.file_menu_selected = 0;
+                } else {
+                    // Refresh entries for the new directory
+                    refresh_file_menu(state);
+                }
+            }
+            Some(None)
+        }
+        KeyCode::Esc => {
+            state.show_file_menu = false;
+            state.file_menu_selected = 0;
+            Some(None)
+        }
+        _ => None, // Fall through to normal input
+    }
 }
 
 // ── Modal handlers ──────────────────────────────────────────────────────────

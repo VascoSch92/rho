@@ -7,6 +7,7 @@ use ratatui::{
 
 use super::{
     command_menu::CommandMenuWidget,
+    file_menu::FileMenuWidget,
     input::{input_height, InputWidget},
     messages::MessageListWidget,
     modals::{
@@ -45,6 +46,11 @@ pub fn render(frame: &mut Frame, state: &AppState) {
     // Command menu (if typing a slash command)
     if state.show_command_menu {
         frame.render_widget(CommandMenuWidget::new(state), area);
+    }
+
+    // File menu (if an @-token is active in the input)
+    if state.show_file_menu {
+        frame.render_widget(FileMenuWidget::new(state), area);
     }
 
     // Confirmation panel (if there are pending actions)

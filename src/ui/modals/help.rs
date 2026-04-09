@@ -51,6 +51,7 @@ const COMMANDS: &[(&str, &str)] = &[
     ("/new", "Start a new conversation"),
     ("/resume", "Resume a previous conversation"),
     ("/usage", "Show token usage details"),
+    ("/skills", "Show loaded skills"),
     ("/settings", "Show current settings"),
     ("/theme", "Change color theme"),
     ("/rename", "Rename the current conversation"),
@@ -59,7 +60,10 @@ const COMMANDS: &[(&str, &str)] = &[
 ];
 
 /// Keyboard shortcuts: (key, description)
-const SHORTCUTS: &[(&str, &str)] = &[("!<cmd>", "Run bash command (e.g. !ls, !pwd)")];
+const SHORTCUTS: &[(&str, &str)] = &[
+    ("!<cmd>", "Run bash command (e.g. !ls, !pwd)"),
+    ("@<path>", "Autocomplete file path (e.g. @src/main.rs)"),
+];
 
 /// Key bindings: (key, description)
 const KEYBINDINGS: &[(&str, &str)] = &[

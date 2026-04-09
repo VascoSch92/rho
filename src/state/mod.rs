@@ -95,6 +95,10 @@ pub struct AppState {
     pub show_command_menu: bool,
     pub command_menu_selected: usize,
 
+    // File menu state (@file autocomplete)
+    pub show_file_menu: bool,
+    pub file_menu_selected: usize,
+
     // Confirmation dialog state (arrow key navigation)
     pub confirmation_selected: usize,
 
@@ -222,6 +226,8 @@ impl AppState {
             show_policy_modal: false,
             show_command_menu: false,
             command_menu_selected: 0,
+            show_file_menu: false,
+            file_menu_selected: 0,
             confirmation_selected: 0,
             spinner_tick: 0,
             spinner_style: defaults.spinner_style.clone(),

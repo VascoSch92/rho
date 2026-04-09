@@ -1,6 +1,7 @@
 //! User interface components built with Ratatui.
 
 pub mod command_menu;
+pub mod file_menu;
 pub mod formatting;
 mod input;
 mod layout;
