@@ -34,7 +34,10 @@ impl Widget for ThemeModal<'_> {
         for (i, theme_name) in themes.iter().enumerate() {
             let is_selected = i == self.state.theme_selected;
 
-            let indicator = format!(" {}", crate::ui::formatting::selector_prefix(is_selected, &self.state.selector_indicator));
+            let indicator = format!(
+                " {}",
+                crate::ui::formatting::selector_prefix(is_selected, &self.state.selector_indicator)
+            );
             let name_style = if is_selected {
                 Style::default().fg(t.primary).add_modifier(Modifier::BOLD)
             } else {

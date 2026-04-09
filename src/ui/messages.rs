@@ -337,9 +337,7 @@ impl Widget for MessageListWidget<'_> {
 
         // Render queued messages (muted, italic, with ~ prefix)
         if !self.state.message_queue.is_empty() {
-            let queued_style = Style::default()
-                .fg(t.muted)
-                .add_modifier(Modifier::ITALIC);
+            let queued_style = Style::default().fg(t.muted).add_modifier(Modifier::ITALIC);
             for queued in &self.state.message_queue {
                 let content_w = content_width.saturating_sub(2);
                 let wrapped = wrap(queued, content_w);

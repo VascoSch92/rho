@@ -133,11 +133,31 @@ impl<'a> TokenUsageModal<'a> {
 
         // Categories to display in the chart
         let rows: Vec<(&str, u64, Style)> = vec![
-            ("Prompt     ", metrics.prompt_tokens, Style::default().fg(t.primary)),
-            ("Completion ", metrics.completion_tokens, Style::default().fg(t.accent)),
-            ("Reasoning  ", metrics.reasoning_tokens, Style::default().fg(t.foreground)),
-            ("Cache Read ", metrics.cache_read_tokens, Style::default().fg(t.success)),
-            ("Cache Write", metrics.cache_write_tokens, Style::default().fg(t.muted)),
+            (
+                "Prompt     ",
+                metrics.prompt_tokens,
+                Style::default().fg(t.primary),
+            ),
+            (
+                "Completion ",
+                metrics.completion_tokens,
+                Style::default().fg(t.accent),
+            ),
+            (
+                "Reasoning  ",
+                metrics.reasoning_tokens,
+                Style::default().fg(t.foreground),
+            ),
+            (
+                "Cache Read ",
+                metrics.cache_read_tokens,
+                Style::default().fg(t.success),
+            ),
+            (
+                "Cache Write",
+                metrics.cache_write_tokens,
+                Style::default().fg(t.muted),
+            ),
         ];
 
         let max = rows.iter().map(|(_, v, _)| *v).max().unwrap_or(0).max(1);
@@ -155,7 +175,10 @@ impl<'a> TokenUsageModal<'a> {
                 Span::styled(format!("  {} ", label), Style::default().fg(t.muted)),
                 Span::styled("█".repeat(filled), *style),
                 Span::styled("░".repeat(empty), Style::default().fg(t.border)),
-                Span::styled(format!("  {}", value_str), Style::default().fg(t.foreground)),
+                Span::styled(
+                    format!("  {}", value_str),
+                    Style::default().fg(t.foreground),
+                ),
             ]));
         }
 
@@ -191,10 +214,7 @@ impl Widget for TokenUsageModal<'_> {
         let t = &self.state.theme;
         let metrics = &self.state.metrics;
 
-        let panes = vec![
-            Self::stats_lines(metrics, t),
-            Self::chart_lines(metrics, t),
-        ];
+        let panes = vec![Self::stats_lines(metrics, t), Self::chart_lines(metrics, t)];
 
         let footer = vec![Line::from(vec![
             Span::styled("  ", Style::default()),

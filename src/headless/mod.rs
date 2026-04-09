@@ -42,9 +42,21 @@ pub async fn run_headless(args: &HeadlessArgs) -> Result<i32> {
     let config_llm = rho_config.llm;
 
     // Apply env var overrides only with --override-with-envs
-    let env_model = if args.override_with_envs { std::env::var("LLM_MODEL").ok() } else { None };
-    let env_api_key = if args.override_with_envs { std::env::var("LLM_API_KEY").ok() } else { None };
-    let env_base_url = if args.override_with_envs { std::env::var("LLM_BASE_URL").ok() } else { None };
+    let env_model = if args.override_with_envs {
+        std::env::var("LLM_MODEL").ok()
+    } else {
+        None
+    };
+    let env_api_key = if args.override_with_envs {
+        std::env::var("LLM_API_KEY").ok()
+    } else {
+        None
+    };
+    let env_base_url = if args.override_with_envs {
+        std::env::var("LLM_BASE_URL").ok()
+    } else {
+        None
+    };
 
     let effective_model = env_model
         .or(config_llm.model)
@@ -56,7 +68,11 @@ pub async fn run_headless(args: &HeadlessArgs) -> Result<i32> {
 
     // Persist env overrides
     if args.override_with_envs {
-        let _ = crate::config::save_llm(&effective_model, &llm_api_key, effective_base_url.as_deref());
+        let _ = crate::config::save_llm(
+            &effective_model,
+            &llm_api_key,
+            effective_base_url.as_deref(),
+        );
     }
 
     // Build LLM config

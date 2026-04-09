@@ -63,7 +63,13 @@ impl<'a> ConfirmationPanel<'a> {
     fn format_action_line(action: &PendingAction, t: &Theme, indicator: &str) -> Line<'static> {
         let risk_text = format!("[{}]", action.security_risk);
         Line::from(vec![
-            Span::styled(format!(" {}", crate::ui::formatting::selector_prefix(true, indicator)), Style::default().fg(t.muted)),
+            Span::styled(
+                format!(
+                    " {}",
+                    crate::ui::formatting::selector_prefix(true, indicator)
+                ),
+                Style::default().fg(t.muted),
+            ),
             Span::styled(
                 action.tool_name.clone(),
                 Style::default().fg(t.primary).add_modifier(Modifier::BOLD),
@@ -102,7 +108,11 @@ impl Widget for ConfirmationPanel<'_> {
 
             lines.push(Line::from(""));
 
-            lines.push(Self::format_action_line(action, t, &self.state.selector_indicator));
+            lines.push(Self::format_action_line(
+                action,
+                t,
+                &self.state.selector_indicator,
+            ));
             if !action.args.is_empty() {
                 lines.push(Line::from(vec![
                     Span::styled("    ", Style::default()),
@@ -157,7 +167,8 @@ impl Widget for ConfirmationPanel<'_> {
                 Style::default().fg(t.muted)
             };
 
-            let prefix = crate::ui::formatting::selector_prefix(is_selected, &self.state.selector_indicator);
+            let prefix =
+                crate::ui::formatting::selector_prefix(is_selected, &self.state.selector_indicator);
             option_spans.push(Span::styled(format!("{}{}", prefix, opt.label()), style));
         }
 

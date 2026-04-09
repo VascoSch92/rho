@@ -188,7 +188,10 @@ impl Widget for PolicyModal<'_> {
             let is_current = *policy == self.state.confirmation_policy;
             let color = policy_color(*policy, t);
 
-            let indicator = format!(" {}", crate::ui::formatting::selector_prefix(is_selected, &self.state.selector_indicator));
+            let indicator = format!(
+                " {}",
+                crate::ui::formatting::selector_prefix(is_selected, &self.state.selector_indicator)
+            );
             let name_style = if is_selected {
                 Style::default().fg(color).add_modifier(Modifier::BOLD)
             } else {

@@ -27,7 +27,10 @@ pub async fn process_command(
             // PROMPT_1, ANSWER_1, PROMPT_2, ANSWER_2
             if state.conversation_id.is_some() && state.is_running() {
                 state.message_queue.push_back(message);
-                info!("Agent busy, queued message ({} in queue)", state.message_queue.len());
+                info!(
+                    "Agent busy, queued message ({} in queue)",
+                    state.message_queue.len()
+                );
                 return Ok(false);
             }
 
@@ -324,9 +327,7 @@ pub async fn process_command(
             // Persist to meta.json so /resume shows the new title
             if let Some(conv_id) = state.conversation_id {
                 let id_str = conv_id.as_simple().to_string();
-                if let Err(e) =
-                    crate::state::conversations::update_title(&id_str, &new_name)
-                {
+                if let Err(e) = crate::state::conversations::update_title(&id_str, &new_name) {
                     warn!("Failed to persist title: {}", e);
                 }
             }

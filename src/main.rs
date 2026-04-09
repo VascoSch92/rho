@@ -199,6 +199,32 @@ fn print_goodbye(conversation_id: Option<uuid::Uuid>) {
     println!();
 }
 
+/// Attempt to connect a WebSocket event stream for a conversation.
+///
+/// Centralizes URL building, connect, and structured logging for all three
+/// connect call sites (resume, reconnect, lazy). Each call site decides what
+/// to do with the result — this helper only connects and logs.
+///
+/// `context` is a short label included in log messages so users can tell
+/// which call site the log came from.
+async fn try_connect_event_stream(
+    client: &AgentServerClient,
+    conv_id: uuid::Uuid,
+    context: &str,
+) -> Option<EventStream> {
+    let ws_url = client.conversation_websocket_url(conv_id);
+    match EventStream::connect(&ws_url).await {
+        Ok(stream) => {
+            info!("WebSocket connected ({})", context);
+            Some(stream)
+        }
+        Err(e) => {
+            warn!("Failed to connect WebSocket ({}): {}", context, e);
+            None
+        }
+    }
+}
+
 async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
@@ -233,9 +259,21 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     let config_llm = config.llm.clone();
 
     // Apply env var overrides only with --override-with-envs
-    let env_model = if args.override_with_envs { std::env::var("LLM_MODEL").ok() } else { None };
-    let env_api_key = if args.override_with_envs { std::env::var("LLM_API_KEY").ok() } else { None };
-    let env_base_url = if args.override_with_envs { std::env::var("LLM_BASE_URL").ok() } else { None };
+    let env_model = if args.override_with_envs {
+        std::env::var("LLM_MODEL").ok()
+    } else {
+        None
+    };
+    let env_api_key = if args.override_with_envs {
+        std::env::var("LLM_API_KEY").ok()
+    } else {
+        None
+    };
+    let env_base_url = if args.override_with_envs {
+        std::env::var("LLM_BASE_URL").ok()
+    } else {
+        None
+    };
 
     // Resolve LLM settings: env (if --override-with-envs) > config > defaults
     let effective_model = if let Some(m) = env_model {
@@ -289,7 +327,11 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
     // Persist env overrides to .rho/config.toml so they survive restarts
     if args.override_with_envs {
-        if let Err(e) = crate::config::save_llm(&effective_model, &llm_api_key, effective_base_url.as_deref()) {
+        if let Err(e) = crate::config::save_llm(
+            &effective_model,
+            &llm_api_key,
+            effective_base_url.as_deref(),
+        ) {
             tracing::warn!("Failed to persist LLM settings: {}", e);
         }
     }
@@ -347,26 +389,17 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
         state.execution_status = client::ExecutionStatus::Idle;
 
         // Connect WebSocket
-        let ws_url = client.conversation_websocket_url(conv_id);
-        match EventStream::connect(&ws_url).await {
-            Ok(stream) => {
-                event_stream = Some(stream);
-                state.connected = true;
-                // Fetch title/metrics
-                if let Ok(full_state) = client.get_conversation_state(conv_id).await {
-                    if let Some(title) = full_state.get("title").and_then(|v| v.as_str()) {
-                        state.conversation_title = Some(title.to_string());
-                    }
-                    if let Some(stats) = full_state.get("stats") {
-                        state.parse_metrics(stats);
-                    }
+        if let Some(stream) = try_connect_event_stream(&client, conv_id, "resume").await {
+            event_stream = Some(stream);
+            state.connected = true;
+            // Fetch title/metrics
+            if let Ok(full_state) = client.get_conversation_state(conv_id).await {
+                if let Some(title) = full_state.get("title").and_then(|v| v.as_str()) {
+                    state.conversation_title = Some(title.to_string());
                 }
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to connect WebSocket for resumed conversation: {}",
-                    e
-                );
+                if let Some(stats) = full_state.get("stats") {
+                    state.parse_metrics(stats);
+                }
             }
         }
     }
@@ -468,23 +501,19 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
                 // Try to reconnect if we have a conversation
                 if let Some(conv_id) = state.conversation_id {
-                    let ws_url = client.conversation_websocket_url(conv_id);
-                    match EventStream::connect(&ws_url).await {
-                        Ok(new_stream) => {
-                            info!("WebSocket reconnected successfully");
-                            event_stream = Some(new_stream);
+                    if let Some(new_stream) =
+                        try_connect_event_stream(&client, conv_id, "reconnect").await
+                    {
+                        event_stream = Some(new_stream);
+                    } else {
+                        // Only show error if we're supposed to be running
+                        if state.is_running() {
+                            state.add_message(DisplayMessage::error(
+                                "WebSocket disconnected. Reconnect failed.",
+                            ));
+                            state.execution_status = ExecutionStatus::Error;
                         }
-                        Err(e) => {
-                            error!("Failed to reconnect WebSocket: {}", e);
-                            // Only show error if we're supposed to be running
-                            if state.is_running() {
-                                state.add_message(DisplayMessage::error(
-                                    "WebSocket disconnected. Reconnect failed.",
-                                ));
-                                state.execution_status = ExecutionStatus::Error;
-                            }
-                            event_stream = None;
-                        }
+                        event_stream = None;
                     }
                 } else {
                     event_stream = None;
@@ -493,15 +522,8 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
         } else if let Some(conv_id) = state.conversation_id {
             if state.is_running() {
                 // No stream but we have a conversation and it's running - try to connect
-                let ws_url = client.conversation_websocket_url(conv_id);
-                match EventStream::connect(&ws_url).await {
-                    Ok(stream) => {
-                        info!("WebSocket connected (was missing)");
-                        event_stream = Some(stream);
-                    }
-                    Err(e) => {
-                        debug!("Failed to connect missing WebSocket: {}", e);
-                    }
+                if let Some(stream) = try_connect_event_stream(&client, conv_id, "lazy").await {
+                    event_stream = Some(stream);
                 }
             }
         }
@@ -524,9 +546,7 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
         }
 
         // Drain message queue — send next queued message when agent becomes idle
-        if !state.message_queue.is_empty()
-            && !state.is_running()
-            && state.conversation_id.is_some()
+        if !state.message_queue.is_empty() && !state.is_running() && state.conversation_id.is_some()
         {
             if let Some(queued_msg) = state.message_queue.pop_front() {
                 info!(

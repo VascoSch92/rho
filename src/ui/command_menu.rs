@@ -89,7 +89,8 @@ impl Widget for CommandMenuWidget<'_> {
                 Style::default().fg(t.foreground)
             };
 
-            let prefix = super::formatting::selector_prefix(is_selected, &self.state.selector_indicator);
+            let prefix =
+                super::formatting::selector_prefix(is_selected, &self.state.selector_indicator);
 
             lines.push(Line::from(vec![
                 Span::styled(prefix, style),
