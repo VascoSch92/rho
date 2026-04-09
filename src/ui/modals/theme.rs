@@ -32,7 +32,7 @@ impl Widget for ThemeModal<'_> {
         lines.push(Line::from(""));
 
         for (i, theme_name) in themes.iter().enumerate() {
-            let is_selected = i == self.state.theme_selected;
+            let is_selected = i == self.state.theme_modal.selected;
 
             let indicator = format!(
                 " {}",

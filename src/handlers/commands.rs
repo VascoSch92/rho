@@ -169,63 +169,18 @@ pub async fn process_command(
         AppCommand::ResumeConversation(conv_id) => {
             *event_stream = None;
             state.reset_conversation();
-            state.conversation_id = Some(conv_id);
 
-            // Replay stored events to rebuild message history
-            let conv_id_str = conv_id.as_simple().to_string();
-            let events = crate::state::conversations::load_events(&conv_id_str);
-            info!(
-                "Replaying {} events from conversation {}",
-                events.len(),
-                conv_id_str
-            );
-            state.replaying = true;
-            for event in events {
-                state.process_event(event);
-            }
-            state.replaying = false;
-            // Reset execution state after replay
-            state.execution_status = ExecutionStatus::Idle;
-            state.pending_actions.clear();
-            state.input_mode = InputMode::Normal;
-
-            // Connect WebSocket to the existing conversation
-            let ws_url = client.conversation_websocket_url(conv_id);
-            match EventStream::connect(&ws_url).await {
-                Ok(stream) => {
-                    *event_stream = Some(stream);
-                    info!("Resumed conversation: {}", conv_id);
-                    state.connected = true;
-
-                    // Fetch conversation state for title/metrics
-                    match client.get_conversation_state(conv_id).await {
-                        Ok(full_state) => {
-                            if let Some(title) = full_state.get("title").and_then(|v| v.as_str()) {
-                                state.conversation_title = Some(title.to_string());
-                            }
-                            if let Some(stats) = full_state.get("stats") {
-                                state.parse_metrics(stats);
-                            }
-                        }
-                        Err(e) => {
-                            warn!("Failed to fetch conversation state: {}", e);
-                        }
-                    }
-
-                    let short_id = &conv_id.to_string()[..8.min(conv_id.to_string().len())];
-                    state.notify(Notification::info(
-                        "Resumed",
-                        format!("Conversation {}", short_id),
-                    ));
-                }
-                Err(e) => {
-                    error!("Failed to connect to conversation: {}", e);
-                    state.conversation_id = None;
-                    state.add_message(DisplayMessage::error(format!(
-                        "Failed to resume conversation: {}",
-                        e
-                    )));
-                }
+            if resume_conversation(state, client, event_stream, conv_id).await {
+                let short_id = &conv_id.to_string()[..8.min(conv_id.to_string().len())];
+                state.notify(Notification::info(
+                    "Resumed",
+                    format!("Conversation {}", short_id),
+                ));
+            } else {
+                state.conversation_id = None;
+                state.add_message(DisplayMessage::error(
+                    "Failed to resume conversation — WebSocket connect failed.",
+                ));
             }
         }
 
@@ -347,57 +302,43 @@ pub async fn process_command(
         }
 
         AppCommand::LoadSkills => {
-            state.skills_loading = true;
-            state.skills_error = None;
-            let request = crate::client::SkillsRequest {
-                load_public: true,
-                load_user: true,
-                load_project: true,
-                load_org: false,
-                project_dir: Some(state.workspace_path.clone()),
-            };
-            match client.list_skills(request).await {
+            state.skills_modal.loading = true;
+            state.skills_modal.error = None;
+            match client.list_skills(build_skills_request(state)).await {
                 Ok(resp) => {
                     info!(
                         "Loaded {} skills from {} sources",
                         resp.skills.len(),
                         resp.sources.len()
                     );
-                    state.skills = resp.skills;
-                    state.skills_loading = false;
-                    state.skills_modal_selected = 0;
+                    state.skills_modal.skills = resp.skills;
+                    state.skills_modal.loading = false;
+                    state.skills_modal.selected = 0;
                 }
                 Err(e) => {
                     error!("Failed to load skills: {}", e);
-                    state.skills_error = Some(format!("{}", e));
-                    state.skills_loading = false;
+                    state.skills_modal.error = Some(format!("{}", e));
+                    state.skills_modal.loading = false;
                 }
             }
         }
 
         AppCommand::SyncSkills => {
-            state.skills_loading = true;
-            state.skills_error = None;
+            state.skills_modal.loading = true;
+            state.skills_modal.error = None;
             match client.sync_skills().await {
                 Ok(()) => {
                     state.notify(Notification::info("Skills", "Public marketplace synced"));
                     // Reload skills after sync
-                    let request = crate::client::SkillsRequest {
-                        load_public: true,
-                        load_user: true,
-                        load_project: true,
-                        load_org: false,
-                        project_dir: Some(state.workspace_path.clone()),
-                    };
-                    if let Ok(resp) = client.list_skills(request).await {
-                        state.skills = resp.skills;
+                    if let Ok(resp) = client.list_skills(build_skills_request(state)).await {
+                        state.skills_modal.skills = resp.skills;
                     }
-                    state.skills_loading = false;
+                    state.skills_modal.loading = false;
                 }
                 Err(e) => {
                     error!("Failed to sync skills: {}", e);
-                    state.skills_error = Some(format!("{}", e));
-                    state.skills_loading = false;
+                    state.skills_modal.error = Some(format!("{}", e));
+                    state.skills_modal.loading = false;
                 }
             }
         }
@@ -413,4 +354,74 @@ pub async fn process_command(
     }
 
     Ok(false)
+}
+
+/// Build a default `SkillsRequest` from the current state.
+///
+/// Loads user, project, and public skills — org loading is disabled. The
+/// project directory is the current workspace path.
+fn build_skills_request(state: &AppState) -> crate::client::SkillsRequest {
+    crate::client::SkillsRequest {
+        load_public: true,
+        load_user: true,
+        load_project: true,
+        load_org: false,
+        project_dir: Some(state.workspace_path.clone()),
+    }
+}
+
+/// Resume an existing conversation: replay stored events, connect the
+/// WebSocket, and fetch title/metrics.
+///
+/// This is shared between the `--resume` CLI flag (at startup in `main.rs`)
+/// and the `ResumeConversation` command triggered from the resume modal.
+///
+/// Callers are responsible for:
+/// - calling `state.reset_conversation()` beforehand if needed
+/// - showing any user-facing notification on success/failure
+///
+/// Returns `true` if the WebSocket connected successfully, `false` otherwise.
+pub async fn resume_conversation(
+    state: &mut AppState,
+    client: &AgentServerClient,
+    event_stream: &mut Option<EventStream>,
+    conv_id: uuid::Uuid,
+) -> bool {
+    state.conversation_id = Some(conv_id);
+
+    // Replay stored events to rebuild message history
+    let conv_id_str = conv_id.as_simple().to_string();
+    let events = crate::state::conversations::load_events(&conv_id_str);
+    info!(
+        "Replaying {} events from conversation {}",
+        events.len(),
+        conv_id_str
+    );
+    state.replaying = true;
+    for event in events {
+        state.process_event(event);
+    }
+    state.replaying = false;
+    state.execution_status = ExecutionStatus::Idle;
+    state.pending_actions.clear();
+    state.input_mode = crate::state::InputMode::Normal;
+
+    // Connect WebSocket
+    if let Some(stream) = crate::client::try_connect_event_stream(client, conv_id, "resume").await {
+        *event_stream = Some(stream);
+        state.connected = true;
+
+        // Fetch title/metrics
+        if let Ok(full_state) = client.get_conversation_state(conv_id).await {
+            if let Some(title) = full_state.get("title").and_then(|v| v.as_str()) {
+                state.conversation_title = Some(title.to_string());
+            }
+            if let Some(stats) = full_state.get("stats") {
+                state.parse_metrics(stats);
+            }
+        }
+        true
+    } else {
+        false
+    }
 }

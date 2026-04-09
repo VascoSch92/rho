@@ -14,6 +14,7 @@ mod events;
 mod helpers;
 pub mod llm;
 pub mod metrics;
+pub mod modals;
 pub mod settings;
 pub mod types;
 
@@ -29,6 +30,9 @@ use crate::config::RhoConfig;
 // Re-export commonly used types at the state:: level
 pub use llm::{LlmProvider, LlmState};
 pub use metrics::MetricsState;
+pub use modals::{
+    CommandMenuState, FileMenuState, ResumeModalState, SkillsModalState, ThemeModalState,
+};
 pub use settings::SettingsState;
 pub use types::{
     ConfirmationPolicy, DisplayMessage, InputMode, MessageRole, Notification, NotificationSeverity,
@@ -81,24 +85,14 @@ pub struct AppState {
     // Modals
     pub show_token_modal: bool,
     pub token_modal_tab: usize,
-    pub show_skills_modal: bool,
-    pub skills_modal_tab: usize,
-    pub skills_modal_selected: usize,
-    pub skill_detail_open: bool,
-    pub skills: Vec<crate::client::SkillInfo>,
-    pub skills_loading: bool,
-    pub skills_error: Option<String>,
+    pub skills_modal: SkillsModalState,
     pub show_help_modal: bool,
     pub help_modal_tab: usize,
     pub show_policy_modal: bool,
 
-    // Command menu state
-    pub show_command_menu: bool,
-    pub command_menu_selected: usize,
-
-    // File menu state (@file autocomplete)
-    pub show_file_menu: bool,
-    pub file_menu_selected: usize,
+    // Popups (triggered by keystrokes in the input)
+    pub command_menu: CommandMenuState,
+    pub file_menu: FileMenuState,
 
     // Confirmation dialog state (arrow key navigation)
     pub confirmation_selected: usize,
@@ -132,19 +126,14 @@ pub struct AppState {
     pub policy_selected: usize,
 
     // Resume modal
-    pub show_resume_modal: bool,
-    pub resume_conversations: Vec<conversations::ConversationEntry>,
-    pub resume_selected: usize,
-    pub resume_confirm_delete: bool,
+    pub resume_modal: ResumeModalState,
 
-    // Theme
+    // Theme (runtime data + modal state)
     pub theme: Theme,
     pub theme_name: String,
     pub available_themes: Vec<String>,
     pub themes: std::collections::HashMap<String, Theme>,
-    pub show_theme_modal: bool,
-    pub theme_selected: usize,
-    pub theme_before_preview: Option<String>,
+    pub theme_modal: ThemeModalState,
 }
 
 impl AppState {
@@ -216,20 +205,12 @@ impl AppState {
             exit_confirmation_selected: 0,
             show_token_modal: false,
             token_modal_tab: 0,
-            show_skills_modal: false,
-            skills_modal_tab: 0,
-            skills_modal_selected: 0,
-            skill_detail_open: false,
-            skills: Vec::new(),
-            skills_loading: false,
-            skills_error: None,
+            skills_modal: SkillsModalState::default(),
             show_help_modal: false,
             help_modal_tab: 0,
             show_policy_modal: false,
-            show_command_menu: false,
-            command_menu_selected: 0,
-            show_file_menu: false,
-            file_menu_selected: 0,
+            command_menu: CommandMenuState::default(),
+            file_menu: FileMenuState::default(),
             confirmation_selected: 0,
             spinner_tick: 0,
             spinner_style: defaults.spinner_style.clone(),
@@ -252,16 +233,11 @@ impl AppState {
             server_starting_tick: 0,
             theme: Theme::default(),
             theme_name: "rho".into(),
-            show_resume_modal: false,
-            resume_conversations: Vec::new(),
-            resume_selected: 0,
-            resume_confirm_delete: false,
+            resume_modal: ResumeModalState::default(),
             available_themes: defaults.theme_names,
             themes: defaults.themes,
             policy_selected: 0,
-            show_theme_modal: false,
-            theme_selected: 0,
-            theme_before_preview: None,
+            theme_modal: ThemeModalState::default(),
         }
     }
 }

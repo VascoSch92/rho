@@ -5,7 +5,7 @@ mod input;
 mod settings;
 mod slash;
 
-pub use commands::process_command;
+pub use commands::{process_command, resume_conversation};
 pub use input::handle_key_event;
 
 use uuid::Uuid;

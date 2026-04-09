@@ -82,7 +82,7 @@ impl Widget for CommandMenuWidget<'_> {
         let mut lines: Vec<Line> = Vec::new();
 
         for (i, (cmd, desc)) in commands.iter().enumerate() {
-            let is_selected = i == self.state.command_menu_selected % commands.len();
+            let is_selected = i == self.state.command_menu.selected % commands.len();
 
             let style = if is_selected {
                 Style::default().fg(t.primary).add_modifier(Modifier::BOLD)
@@ -143,6 +143,6 @@ pub fn selected_command(state: &AppState) -> Option<&'static str> {
     if commands.is_empty() {
         None
     } else {
-        Some(commands[state.command_menu_selected % commands.len()].0)
+        Some(commands[state.command_menu.selected % commands.len()].0)
     }
 }

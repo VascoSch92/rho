@@ -44,12 +44,12 @@ pub fn render(frame: &mut Frame, state: &AppState) {
 
     // Render overlays
     // Command menu (if typing a slash command)
-    if state.show_command_menu {
+    if state.command_menu.show {
         frame.render_widget(CommandMenuWidget::new(state), area);
     }
 
     // File menu (if an @-token is active in the input)
-    if state.show_file_menu {
+    if state.file_menu.show {
         frame.render_widget(FileMenuWidget::new(state), area);
     }
 
@@ -69,7 +69,7 @@ pub fn render(frame: &mut Frame, state: &AppState) {
     }
 
     // Skills modal (handles both list and detail views internally)
-    if state.show_skills_modal {
+    if state.skills_modal.show {
         frame.render_widget(SkillsModal::new(state), area);
     }
 
@@ -89,12 +89,12 @@ pub fn render(frame: &mut Frame, state: &AppState) {
     }
 
     // Theme modal
-    if state.show_theme_modal {
+    if state.theme_modal.show {
         frame.render_widget(ThemeModal::new(state), area);
     }
 
     // Resume modal
-    if state.show_resume_modal {
+    if state.resume_modal.show {
         frame.render_widget(ResumeModal::new(state), area);
     }
 

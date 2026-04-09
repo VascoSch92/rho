@@ -15,6 +15,33 @@ pub use api::{
 pub use websocket::EventStream;
 
 use thiserror::Error;
+use tracing::{info, warn};
+
+/// Attempt to connect a WebSocket event stream for a conversation.
+///
+/// Centralizes URL building, connect, and structured logging for the three
+/// connect call sites (resume, reconnect, lazy). Each call site decides what
+/// to do with the result — this helper only connects and logs.
+///
+/// `context` is a short label included in log messages so users can tell
+/// which call site the log came from.
+pub async fn try_connect_event_stream(
+    client: &AgentServerClient,
+    conv_id: uuid::Uuid,
+    context: &str,
+) -> Option<EventStream> {
+    let ws_url = client.conversation_websocket_url(conv_id);
+    match EventStream::connect(&ws_url).await {
+        Ok(stream) => {
+            info!("WebSocket connected ({})", context);
+            Some(stream)
+        }
+        Err(e) => {
+            warn!("Failed to connect WebSocket ({}): {}", context, e);
+            None
+        }
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum ClientError {

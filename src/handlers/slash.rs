@@ -19,10 +19,10 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
             None
         }
         Some("skills") => {
-            state.show_skills_modal = true;
-            state.skills_modal_tab = 0;
-            state.skills_modal_selected = 0;
-            state.skill_detail_open = false;
+            state.skills_modal.show = true;
+            state.skills_modal.tab = 0;
+            state.skills_modal.selected = 0;
+            state.skills_modal.detail_open = false;
             // Trigger initial load
             Some(AppCommand::LoadSkills)
         }
@@ -32,10 +32,10 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
         }
         Some("pause") => Some(AppCommand::Pause),
         Some("resume") => {
-            state.resume_conversations = crate::state::conversations::scan_conversations();
-            state.resume_selected = 0;
-            state.resume_confirm_delete = false;
-            state.show_resume_modal = true;
+            state.resume_modal.conversations = crate::state::conversations::scan_conversations();
+            state.resume_modal.selected = 0;
+            state.resume_modal.confirm_delete = false;
+            state.resume_modal.show = true;
             None
         }
         Some("theme") => {
@@ -60,13 +60,13 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
                 }
             } else {
                 // Open theme picker modal, save current for revert on Esc
-                state.theme_selected = state
+                state.theme_modal.selected = state
                     .available_themes
                     .iter()
                     .position(|t| *t == state.theme_name)
                     .unwrap_or(0);
-                state.theme_before_preview = Some(state.theme_name.clone());
-                state.show_theme_modal = true;
+                state.theme_modal.before_preview = Some(state.theme_name.clone());
+                state.theme_modal.show = true;
             }
             None
         }

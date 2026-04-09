@@ -11,6 +11,7 @@ use super::AppCommand;
 use crate::cli::Args;
 use crate::config::keybindings::Action;
 use crate::state::{AppState, InputMode};
+use crate::ui::modals::tabs::rotate_tab;
 use crate::ui::ConfirmOption;
 
 /// Handle key events and return an optional command.
@@ -45,7 +46,7 @@ pub fn handle_key_event(
     if state.show_token_modal {
         return handle_token_modal(state, key);
     }
-    if state.show_skills_modal {
+    if state.skills_modal.show {
         return handle_skills_modal(state, key);
     }
     if state.show_help_modal {
@@ -54,10 +55,10 @@ pub fn handle_key_event(
     if state.show_policy_modal {
         return handle_policy_modal(state, key);
     }
-    if state.show_theme_modal {
+    if state.theme_modal.show {
         return handle_theme_modal(state, key);
     }
-    if state.show_resume_modal {
+    if state.resume_modal.show {
         return handle_resume_modal(state, key);
     }
     if state.settings.show {
@@ -75,14 +76,14 @@ pub fn handle_key_event(
     }
 
     // ── Command menu ────────────────────────────────────────────────────
-    if state.show_command_menu {
+    if state.command_menu.show {
         if let Some(cmd) = handle_command_menu(state, key) {
             return cmd;
         }
     }
 
     // ── File menu ───────────────────────────────────────────────────────
-    if state.show_file_menu {
+    if state.file_menu.show {
         if let Some(cmd) = handle_file_menu(state, key) {
             return cmd;
         }
@@ -95,24 +96,24 @@ pub fn handle_key_event(
     cmd
 }
 
-/// Update `show_file_menu` based on whether the cursor is inside an `@...` token.
+/// Update `file_menu.show` based on whether the cursor is inside an `@...` token.
 fn refresh_file_menu(state: &mut AppState) {
     let has_token =
         crate::ui::file_menu::parse_token(&state.input_buffer, state.cursor_position).is_some();
     if has_token {
         let entries = crate::ui::file_menu::current_entries(state);
         if !entries.is_empty() {
-            if !state.show_file_menu {
-                state.file_menu_selected = 0;
+            if !state.file_menu.show {
+                state.file_menu.selected = 0;
             }
             // Clamp selection to the new list size
-            state.file_menu_selected = state.file_menu_selected.min(entries.len() - 1);
-            state.show_file_menu = true;
+            state.file_menu.selected = state.file_menu.selected.min(entries.len() - 1);
+            state.file_menu.show = true;
             return;
         }
     }
-    state.show_file_menu = false;
-    state.file_menu_selected = 0;
+    state.file_menu.show = false;
+    state.file_menu.selected = 0;
 }
 
 /// File menu navigation (Up/Down/Tab/Enter/Esc). Returns `Some(None)` to
@@ -125,21 +126,21 @@ fn handle_file_menu(state: &mut AppState, key: event::KeyEvent) -> Option<Option
     }
     match key.code {
         KeyCode::Up => {
-            state.file_menu_selected = state.file_menu_selected.saturating_sub(1);
+            state.file_menu.selected = state.file_menu.selected.saturating_sub(1);
             Some(None)
         }
         KeyCode::Down => {
-            state.file_menu_selected = (state.file_menu_selected + 1).min(entries.len() - 1);
+            state.file_menu.selected = (state.file_menu.selected + 1).min(entries.len() - 1);
             Some(None)
         }
         KeyCode::Tab | KeyCode::Enter => {
-            if let Some(entry) = entries.get(state.file_menu_selected) {
+            if let Some(entry) = entries.get(state.file_menu.selected) {
                 crate::ui::file_menu::apply_selection(state, entry);
                 // After inserting a file (not a directory), close the menu.
                 // For a directory, keep it open so the user can drill down.
                 if !entry.is_dir {
-                    state.show_file_menu = false;
-                    state.file_menu_selected = 0;
+                    state.file_menu.show = false;
+                    state.file_menu.selected = 0;
                 } else {
                     // Refresh entries for the new directory
                     refresh_file_menu(state);
@@ -148,8 +149,8 @@ fn handle_file_menu(state: &mut AppState, key: event::KeyEvent) -> Option<Option
             Some(None)
         }
         KeyCode::Esc => {
-            state.show_file_menu = false;
-            state.file_menu_selected = 0;
+            state.file_menu.show = false;
+            state.file_menu.selected = 0;
             Some(None)
         }
         _ => None, // Fall through to normal input
@@ -163,17 +164,18 @@ fn handle_skills_modal(state: &mut AppState, key: event::KeyEvent) -> Option<App
     const NUM_TABS: usize = 4;
 
     // Detail view: only Esc (return to list) is handled
-    if state.skill_detail_open {
+    if state.skills_modal.detail_open {
         if let KeyCode::Esc = key.code {
-            state.skill_detail_open = false;
+            state.skills_modal.detail_open = false;
         }
         return None;
     }
 
     // Count skills in the active tab for clamping navigation
     let tab_count = {
-        let tab = state.skills_modal_tab;
+        let tab = state.skills_modal.tab;
         state
+            .skills_modal
             .skills
             .iter()
             .filter(|s| match tab {
@@ -203,28 +205,28 @@ fn handle_skills_modal(state: &mut AppState, key: event::KeyEvent) -> Option<App
 
     match key.code {
         KeyCode::Tab | KeyCode::Right => {
-            state.skills_modal_tab = (state.skills_modal_tab + 1) % NUM_TABS;
-            state.skills_modal_selected = 0;
+            state.skills_modal.tab = rotate_tab(state.skills_modal.tab, NUM_TABS, true);
+            state.skills_modal.selected = 0;
             return None;
         }
         KeyCode::BackTab | KeyCode::Left => {
-            state.skills_modal_tab = (state.skills_modal_tab + NUM_TABS - 1) % NUM_TABS;
-            state.skills_modal_selected = 0;
+            state.skills_modal.tab = rotate_tab(state.skills_modal.tab, NUM_TABS, false);
+            state.skills_modal.selected = 0;
             return None;
         }
         KeyCode::Up => {
-            state.skills_modal_selected = state.skills_modal_selected.saturating_sub(1);
+            state.skills_modal.selected = state.skills_modal.selected.saturating_sub(1);
             return None;
         }
         KeyCode::Down => {
             if tab_count > 0 {
-                state.skills_modal_selected = (state.skills_modal_selected + 1).min(tab_count - 1);
+                state.skills_modal.selected = (state.skills_modal.selected + 1).min(tab_count - 1);
             }
             return None;
         }
         KeyCode::Enter => {
             if tab_count > 0 {
-                state.skill_detail_open = true;
+                state.skills_modal.detail_open = true;
             }
             return None;
         }
@@ -232,9 +234,9 @@ fn handle_skills_modal(state: &mut AppState, key: event::KeyEvent) -> Option<App
             return Some(AppCommand::SyncSkills);
         }
         KeyCode::Esc => {
-            state.show_skills_modal = false;
-            state.skills_modal_tab = 0;
-            state.skills_modal_selected = 0;
+            state.skills_modal.show = false;
+            state.skills_modal.tab = 0;
+            state.skills_modal.selected = 0;
             return None;
         }
         _ => {}
@@ -247,11 +249,11 @@ fn handle_help_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppCo
     const NUM_TABS: usize = 2;
     match key.code {
         KeyCode::Tab | KeyCode::Right => {
-            state.help_modal_tab = (state.help_modal_tab + 1) % NUM_TABS;
+            state.help_modal_tab = rotate_tab(state.help_modal_tab, NUM_TABS, true);
             return None;
         }
         KeyCode::BackTab | KeyCode::Left => {
-            state.help_modal_tab = (state.help_modal_tab + NUM_TABS - 1) % NUM_TABS;
+            state.help_modal_tab = rotate_tab(state.help_modal_tab, NUM_TABS, false);
             return None;
         }
         _ => {}
@@ -271,11 +273,11 @@ fn handle_token_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppC
     // Tab switching: Tab / Left / Right
     match key.code {
         KeyCode::Tab | KeyCode::Right => {
-            state.token_modal_tab = (state.token_modal_tab + 1) % NUM_TABS;
+            state.token_modal_tab = rotate_tab(state.token_modal_tab, NUM_TABS, true);
             return None;
         }
         KeyCode::BackTab | KeyCode::Left => {
-            state.token_modal_tab = (state.token_modal_tab + NUM_TABS - 1) % NUM_TABS;
+            state.token_modal_tab = rotate_tab(state.token_modal_tab, NUM_TABS, false);
             return None;
         }
         _ => {}
@@ -321,25 +323,26 @@ fn handle_theme_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppC
     if let Some(action) = state.keybindings.modal.get(&key) {
         match action {
             Action::Dismiss => {
-                if let Some(original) = state.theme_before_preview.take() {
+                if let Some(original) = state.theme_modal.before_preview.take() {
                     if let Some(&t) = state.themes.get(&original) {
                         state.theme = t;
                     }
                     state.theme_name = original;
                 }
-                state.show_theme_modal = false;
+                state.theme_modal.show = false;
             }
             Action::NavUp => {
-                state.theme_selected = state.theme_selected.saturating_sub(1);
+                state.theme_modal.selected = state.theme_modal.selected.saturating_sub(1);
                 apply_theme_preview(state);
             }
             Action::NavDown => {
-                state.theme_selected = (state.theme_selected + 1).min(num_themes.saturating_sub(1));
+                state.theme_modal.selected =
+                    (state.theme_modal.selected + 1).min(num_themes.saturating_sub(1));
                 apply_theme_preview(state);
             }
             Action::Confirm => {
-                state.theme_before_preview = None;
-                state.show_theme_modal = false;
+                state.theme_modal.before_preview = None;
+                state.theme_modal.show = false;
                 if let Err(e) = crate::config::save_theme(&state.theme_name) {
                     tracing::warn!("Failed to save theme: {}", e);
                 }
@@ -351,7 +354,7 @@ fn handle_theme_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppC
 }
 
 fn apply_theme_preview(state: &mut AppState) {
-    let name = &state.available_themes[state.theme_selected];
+    let name = &state.available_themes[state.theme_modal.selected];
     if let Some(&t) = state.themes.get(name) {
         state.theme = t;
     }
@@ -360,42 +363,53 @@ fn apply_theme_preview(state: &mut AppState) {
 
 /// Resume conversation modal with delete support.
 fn handle_resume_modal(state: &mut AppState, key: event::KeyEvent) -> Option<AppCommand> {
-    if state.resume_confirm_delete {
+    if state.resume_modal.confirm_delete {
         match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => {
-                if let Some(conv) = state.resume_conversations.get(state.resume_selected) {
+                if let Some(conv) = state
+                    .resume_modal
+                    .conversations
+                    .get(state.resume_modal.selected)
+                {
                     let id = conv.id.clone();
                     if let Err(e) = crate::state::conversations::delete_conversation(&id) {
                         tracing::warn!("Failed to delete conversation: {}", e);
                     }
-                    state.resume_conversations.remove(state.resume_selected);
-                    if state.resume_selected > 0
-                        && state.resume_selected >= state.resume_conversations.len()
+                    state
+                        .resume_modal
+                        .conversations
+                        .remove(state.resume_modal.selected);
+                    if state.resume_modal.selected > 0
+                        && state.resume_modal.selected >= state.resume_modal.conversations.len()
                     {
-                        state.resume_selected -= 1;
+                        state.resume_modal.selected -= 1;
                     }
                 }
-                state.resume_confirm_delete = false;
+                state.resume_modal.confirm_delete = false;
             }
-            _ => state.resume_confirm_delete = false,
+            _ => state.resume_modal.confirm_delete = false,
         }
         return None;
     }
 
     if let Some(action) = state.keybindings.modal.get(&key) {
         match action {
-            Action::Dismiss => state.show_resume_modal = false,
+            Action::Dismiss => state.resume_modal.show = false,
             Action::NavUp => {
-                state.resume_selected = state.resume_selected.saturating_sub(1);
+                state.resume_modal.selected = state.resume_modal.selected.saturating_sub(1);
             }
             Action::NavDown => {
-                let max = state.resume_conversations.len().saturating_sub(1);
-                state.resume_selected = (state.resume_selected + 1).min(max);
+                let max = state.resume_modal.conversations.len().saturating_sub(1);
+                state.resume_modal.selected = (state.resume_modal.selected + 1).min(max);
             }
             Action::Confirm => {
-                if let Some(conv) = state.resume_conversations.get(state.resume_selected) {
+                if let Some(conv) = state
+                    .resume_modal
+                    .conversations
+                    .get(state.resume_modal.selected)
+                {
                     if let Ok(uuid) = uuid::Uuid::parse_str(&conv.id) {
-                        state.show_resume_modal = false;
+                        state.resume_modal.show = false;
                         return Some(AppCommand::ResumeConversation(uuid));
                     }
                 }
@@ -403,9 +417,9 @@ fn handle_resume_modal(state: &mut AppState, key: event::KeyEvent) -> Option<App
             _ => {}
         }
     } else if matches!(key.code, KeyCode::Char('d') | KeyCode::Char('D'))
-        && !state.resume_conversations.is_empty()
+        && !state.resume_modal.conversations.is_empty()
     {
-        state.resume_confirm_delete = true;
+        state.resume_modal.confirm_delete = true;
     }
     None
 }
@@ -470,14 +484,14 @@ fn handle_command_menu(state: &mut AppState, key: event::KeyEvent) -> Option<Opt
         KeyCode::Up => {
             let count = crate::ui::command_menu::command_count(state);
             if count > 0 {
-                state.command_menu_selected = state.command_menu_selected.saturating_sub(1);
+                state.command_menu.selected = state.command_menu.selected.saturating_sub(1);
             }
             Some(None)
         }
         KeyCode::Down => {
             let count = crate::ui::command_menu::command_count(state);
             if count > 0 {
-                state.command_menu_selected = (state.command_menu_selected + 1) % count;
+                state.command_menu.selected = (state.command_menu.selected + 1) % count;
             }
             Some(None)
         }
@@ -485,7 +499,7 @@ fn handle_command_menu(state: &mut AppState, key: event::KeyEvent) -> Option<Opt
             if let Some(cmd) = crate::ui::command_menu::selected_command(state) {
                 state.input_buffer = format!("/{}", cmd);
                 state.cursor_position = state.input_buffer.len();
-                state.show_command_menu = false;
+                state.command_menu.show = false;
             }
             Some(None)
         }
@@ -493,14 +507,14 @@ fn handle_command_menu(state: &mut AppState, key: event::KeyEvent) -> Option<Opt
             if let Some(cmd) = crate::ui::command_menu::selected_command(state) {
                 state.input_buffer = format!("/{}", cmd);
                 state.cursor_position = state.input_buffer.len();
-                state.show_command_menu = false;
+                state.command_menu.show = false;
                 let input = state.take_input();
                 return Some(handle_slash_command(&input[1..], state));
             }
             Some(None)
         }
         KeyCode::Esc => {
-            state.show_command_menu = false;
+            state.command_menu.show = false;
             Some(None)
         }
         _ => None, // Fall through to normal input
@@ -512,7 +526,7 @@ fn handle_normal_input(state: &mut AppState, key: event::KeyEvent) -> Option<App
     if let Some(action) = state.keybindings.normal.get(&key) {
         match action {
             Action::Submit => {
-                state.show_command_menu = false;
+                state.command_menu.show = false;
                 let input = state.take_input();
                 if input.is_empty() {
                     return None;
@@ -566,7 +580,7 @@ fn handle_normal_input(state: &mut AppState, key: event::KeyEvent) -> Option<App
             }
             Action::Backspace => {
                 state.handle_backspace();
-                state.show_command_menu =
+                state.command_menu.show =
                     state.input_buffer.starts_with('/') && state.input_buffer.len() <= 10;
                 return None;
             }
@@ -575,8 +589,8 @@ fn handle_normal_input(state: &mut AppState, key: event::KeyEvent) -> Option<App
                 return None;
             }
             Action::Pause => {
-                if state.show_command_menu {
-                    state.show_command_menu = false;
+                if state.command_menu.show {
+                    state.command_menu.show = false;
                 } else if state.is_running() {
                     return Some(AppCommand::Pause);
                 }
@@ -591,10 +605,10 @@ fn handle_normal_input(state: &mut AppState, key: event::KeyEvent) -> Option<App
         if key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT {
             state.handle_char(c);
             if state.input_buffer.starts_with('/') && state.input_buffer.len() <= 10 {
-                state.show_command_menu = true;
-                state.command_menu_selected = 0;
+                state.command_menu.show = true;
+                state.command_menu.selected = 0;
             } else {
-                state.show_command_menu = false;
+                state.command_menu.show = false;
             }
         }
     }

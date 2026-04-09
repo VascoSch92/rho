@@ -30,7 +30,9 @@ use tracing::{debug, error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use cli::{Args, Cli};
-use client::{AgentServerClient, EventStream, ExecutionStatus, LLMConfig};
+use client::{
+    try_connect_event_stream, AgentServerClient, EventStream, ExecutionStatus, LLMConfig,
+};
 use config::RhoConfig;
 use handlers::{handle_key_event, process_command};
 use state::{AppState, DisplayMessage, Notification};
@@ -199,32 +201,6 @@ fn print_goodbye(conversation_id: Option<uuid::Uuid>) {
     println!();
 }
 
-/// Attempt to connect a WebSocket event stream for a conversation.
-///
-/// Centralizes URL building, connect, and structured logging for all three
-/// connect call sites (resume, reconnect, lazy). Each call site decides what
-/// to do with the result — this helper only connects and logs.
-///
-/// `context` is a short label included in log messages so users can tell
-/// which call site the log came from.
-async fn try_connect_event_stream(
-    client: &AgentServerClient,
-    conv_id: uuid::Uuid,
-    context: &str,
-) -> Option<EventStream> {
-    let ws_url = client.conversation_websocket_url(conv_id);
-    match EventStream::connect(&ws_url).await {
-        Ok(stream) => {
-            info!("WebSocket connected ({})", context);
-            Some(stream)
-        }
-        Err(e) => {
-            warn!("Failed to connect WebSocket ({}): {}", context, e);
-            None
-        }
-    }
-}
-
 async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
@@ -372,36 +348,8 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     // Handle --resume flag: replay events and connect WebSocket
     if let Some(conv_id) = args.resume {
         state.reset_conversation();
-        state.conversation_id = Some(conv_id);
-
-        let conv_id_str = conv_id.as_simple().to_string();
-        let events = state::conversations::load_events(&conv_id_str);
-        info!(
-            "Resuming conversation {} ({} events)",
-            conv_id,
-            events.len()
-        );
-        state.replaying = true;
-        for event in events {
-            state.process_event(event);
-        }
-        state.replaying = false;
-        state.execution_status = client::ExecutionStatus::Idle;
-
-        // Connect WebSocket
-        if let Some(stream) = try_connect_event_stream(&client, conv_id, "resume").await {
-            event_stream = Some(stream);
-            state.connected = true;
-            // Fetch title/metrics
-            if let Ok(full_state) = client.get_conversation_state(conv_id).await {
-                if let Some(title) = full_state.get("title").and_then(|v| v.as_str()) {
-                    state.conversation_title = Some(title.to_string());
-                }
-                if let Some(stats) = full_state.get("stats") {
-                    state.parse_metrics(stats);
-                }
-            }
-        }
+        info!("Resuming conversation {}", conv_id);
+        handlers::resume_conversation(&mut state, &client, &mut event_stream, conv_id).await;
     }
 
     // Main event loop
@@ -433,25 +381,7 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
         }
 
         // Poll server health while starting up (every ~1s = 10 ticks)
-        if state.server_starting {
-            state.server_starting_tick = state.server_starting_tick.wrapping_add(1);
-            if tick_count.is_multiple_of(10) {
-                match client.health().await {
-                    Ok(_) => {
-                        state.server_starting = false;
-                        state.connected = true;
-                        state.notify(Notification::info(
-                            "Connected",
-                            "✨ Agent is awake and ready!",
-                        ));
-                        info!("Agent server ready");
-                    }
-                    Err(_) => {
-                        debug!("Server not ready yet, will retry...");
-                    }
-                }
-            }
-        }
+        poll_server_startup(&mut state, &client, tick_count).await;
 
         // Poll for events (with timeout for tick rate)
         if event::poll(tick_rate)? {
@@ -488,86 +418,14 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
             }
         }
 
-        // Process WebSocket events
-        if let Some(ref mut stream) = event_stream {
-            while let Some(event) = stream.try_recv() {
-                debug!("Received event: {:?}", event.type_name());
-                state.process_event(event);
-            }
+        // Drain WebSocket events and handle reconnect / lazy connect
+        process_websocket_events(&mut state, &client, &mut event_stream).await;
 
-            // Check if stream is still connected - attempt reconnect if disconnected
-            if !stream.is_connected() {
-                warn!("WebSocket disconnected, attempting to reconnect...");
-
-                // Try to reconnect if we have a conversation
-                if let Some(conv_id) = state.conversation_id {
-                    if let Some(new_stream) =
-                        try_connect_event_stream(&client, conv_id, "reconnect").await
-                    {
-                        event_stream = Some(new_stream);
-                    } else {
-                        // Only show error if we're supposed to be running
-                        if state.is_running() {
-                            state.add_message(DisplayMessage::error(
-                                "WebSocket disconnected. Reconnect failed.",
-                            ));
-                            state.execution_status = ExecutionStatus::Error;
-                        }
-                        event_stream = None;
-                    }
-                } else {
-                    event_stream = None;
-                }
-            }
-        } else if let Some(conv_id) = state.conversation_id {
-            if state.is_running() {
-                // No stream but we have a conversation and it's running - try to connect
-                if let Some(stream) = try_connect_event_stream(&client, conv_id, "lazy").await {
-                    event_stream = Some(stream);
-                }
-            }
-        }
-
-        // Fetch stats when execution finishes (server doesn't send metrics updates via WebSocket)
-        if state.needs_stats_refresh {
-            if let Some(conversation_id) = state.conversation_id {
-                state.needs_stats_refresh = false;
-                match client.get_conversation_state(conversation_id).await {
-                    Ok(full_state) => {
-                        if let Some(stats) = full_state.get("stats") {
-                            state.parse_metrics(stats);
-                        }
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to fetch conversation stats: {}", e);
-                    }
-                }
-            }
-        }
+        // Fetch stats when execution finishes (server doesn't push metrics via WebSocket)
+        refresh_stats_if_needed(&mut state, &client).await;
 
         // Drain message queue — send next queued message when agent becomes idle
-        if !state.message_queue.is_empty() && !state.is_running() && state.conversation_id.is_some()
-        {
-            if let Some(queued_msg) = state.message_queue.pop_front() {
-                info!(
-                    "Sending queued message ({} remaining)",
-                    state.message_queue.len()
-                );
-                state.add_message(crate::state::DisplayMessage::user(&queued_msg));
-                let conv_id = state.conversation_id.unwrap();
-                state.start_timer();
-                state.randomize_spinner();
-                state.execution_status = ExecutionStatus::Running;
-                if let Err(e) = client.send_message(conv_id, &queued_msg, true).await {
-                    error!("Failed to send queued message: {}", e);
-                    state.add_message(crate::state::DisplayMessage::error(format!(
-                        "Failed to send: {}",
-                        e
-                    )));
-                    state.execution_status = ExecutionStatus::Idle;
-                }
-            }
-        }
+        drain_message_queue(&mut state, &client).await;
 
         // Check for exit - only when explicitly requested
         if state.should_exit {
@@ -589,4 +447,126 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
     info!("Rho TUI exited");
     Ok(())
+}
+
+// ── Event loop helpers ─────────────────────────────────────────────────────
+//
+// These functions are called once per tick from `run_app`'s main loop. They
+// take `&mut state` / `&client` and mutate in place, keeping the loop itself
+// short and readable.
+
+/// Poll `/health` every ~1s while the server is still starting.
+async fn poll_server_startup(state: &mut AppState, client: &AgentServerClient, tick_count: u64) {
+    if !state.server_starting {
+        return;
+    }
+    state.server_starting_tick = state.server_starting_tick.wrapping_add(1);
+    if !tick_count.is_multiple_of(10) {
+        return;
+    }
+    match client.health().await {
+        Ok(_) => {
+            state.server_starting = false;
+            state.connected = true;
+            state.notify(Notification::info(
+                "Connected",
+                "✨ Agent is awake and ready!",
+            ));
+            info!("Agent server ready");
+        }
+        Err(_) => {
+            debug!("Server not ready yet, will retry...");
+        }
+    }
+}
+
+/// Drain events from the active WebSocket stream, attempt reconnect if it
+/// has dropped, or lazily connect one if we don't have one yet.
+async fn process_websocket_events(
+    state: &mut AppState,
+    client: &AgentServerClient,
+    event_stream: &mut Option<EventStream>,
+) {
+    if let Some(ref mut stream) = event_stream {
+        while let Some(event) = stream.try_recv() {
+            debug!("Received event: {:?}", event.type_name());
+            state.process_event(event);
+        }
+
+        // Check if stream is still connected — attempt reconnect if disconnected
+        if !stream.is_connected() {
+            warn!("WebSocket disconnected, attempting to reconnect...");
+
+            if let Some(conv_id) = state.conversation_id {
+                if let Some(new_stream) =
+                    try_connect_event_stream(client, conv_id, "reconnect").await
+                {
+                    *event_stream = Some(new_stream);
+                    return;
+                }
+                // Only surface an error if we were supposed to be running
+                if state.is_running() {
+                    state.add_message(DisplayMessage::error(
+                        "WebSocket disconnected. Reconnect failed.",
+                    ));
+                    state.execution_status = ExecutionStatus::Error;
+                }
+            }
+            *event_stream = None;
+        }
+    } else if let Some(conv_id) = state.conversation_id {
+        if state.is_running() {
+            // No stream but we have a running conversation — try to connect lazily
+            if let Some(stream) = try_connect_event_stream(client, conv_id, "lazy").await {
+                *event_stream = Some(stream);
+            }
+        }
+    }
+}
+
+/// Fetch metrics/stats when execution has just finished.
+async fn refresh_stats_if_needed(state: &mut AppState, client: &AgentServerClient) {
+    if !state.needs_stats_refresh {
+        return;
+    }
+    let Some(conversation_id) = state.conversation_id else {
+        return;
+    };
+    state.needs_stats_refresh = false;
+    match client.get_conversation_state(conversation_id).await {
+        Ok(full_state) => {
+            if let Some(stats) = full_state.get("stats") {
+                state.parse_metrics(stats);
+            }
+        }
+        Err(e) => {
+            warn!("Failed to fetch conversation stats: {}", e);
+        }
+    }
+}
+
+/// If the agent just became idle and we have queued messages, send the next
+/// one — its display entry is added at this moment so the visible order is
+/// always `PROMPT_1, ANSWER_1, PROMPT_2, ANSWER_2`.
+async fn drain_message_queue(state: &mut AppState, client: &AgentServerClient) {
+    if state.message_queue.is_empty() || state.is_running() || state.conversation_id.is_none() {
+        return;
+    }
+    let Some(queued_msg) = state.message_queue.pop_front() else {
+        return;
+    };
+    info!(
+        "Sending queued message ({} remaining)",
+        state.message_queue.len()
+    );
+    state.add_message(DisplayMessage::user(&queued_msg));
+    let conv_id = state.conversation_id.unwrap();
+    state.start_timer();
+    state.randomize_spinner();
+    state.execution_status = ExecutionStatus::Running;
+    if let Err(e) = client.send_message(conv_id, &queued_msg, true).await {
+        error!("Failed to send queued message: {}", e);
+        state.add_message(DisplayMessage::error(format!("Failed to send: {}", e)));
+        state.execution_status = ExecutionStatus::Idle;
+    }
 }

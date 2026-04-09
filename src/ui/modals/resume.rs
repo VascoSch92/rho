@@ -50,7 +50,7 @@ impl<'a> ResumeModal<'a> {
 impl Widget for ResumeModal<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let t = &self.state.theme;
-        let convos = &self.state.resume_conversations;
+        let convos = &self.state.resume_modal.conversations;
         let mut lines: Vec<Line> = Vec::new();
 
         if convos.is_empty() {
@@ -71,7 +71,7 @@ impl Widget for ResumeModal<'_> {
             // Show up to 10 conversations, scrolling around the selection
             let max_visible = 10;
             let total = convos.len();
-            let selected = self.state.resume_selected;
+            let selected = self.state.resume_modal.selected;
 
             let start = if total <= max_visible || selected < max_visible / 2 {
                 0
@@ -149,7 +149,7 @@ impl Widget for ResumeModal<'_> {
             lines.push(Line::from(""));
 
             // Delete confirmation or help line
-            if self.state.resume_confirm_delete {
+            if self.state.resume_modal.confirm_delete {
                 lines.push(Line::from(vec![
                     Span::styled("  Delete this conversation? ", Style::default().fg(t.error)),
                     Span::styled(
