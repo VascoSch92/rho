@@ -28,6 +28,7 @@ pub enum AppCommand {
     RenameConversation(String),
     LoadSkills,
     SyncSkills,
+    LoadTools,
     ForceQuit,
     CancelQuit,
 }

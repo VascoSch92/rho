@@ -1,7 +1,7 @@
 //! Command execution — processes AppCommands into API calls and state changes.
 
 use anyhow::Result;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use super::AppCommand;
 use crate::cli::Args;
@@ -170,16 +170,20 @@ pub async fn process_command(
             *event_stream = None;
             state.reset_conversation();
 
-            if resume_conversation(state, client, event_stream, conv_id).await {
-                let short_id = &conv_id.to_string()[..8.min(conv_id.to_string().len())];
+            let connected = resume_conversation(state, client, event_stream, conv_id, llm_config, args).await;
+            let short_id = &conv_id.to_string()[..8.min(conv_id.to_string().len())];
+            if connected {
                 state.notify(Notification::info(
                     "Resumed",
                     format!("Conversation {}", short_id),
                 ));
             } else {
-                state.conversation_id = None;
-                state.add_message(DisplayMessage::error(
-                    "Failed to resume conversation — WebSocket connect failed.",
+                // History is still displayed from the replay — just stay idle.
+                // The next message the user sends will re-attach the server to
+                // this conversation (the files exist on disk).
+                state.notify(Notification::info(
+                    "Resumed (offline)",
+                    format!("Conversation {} — send a message to reconnect", short_id),
                 ));
             }
         }
@@ -343,6 +347,21 @@ pub async fn process_command(
             }
         }
 
+        AppCommand::LoadTools => {
+            // Show the tools configured on the agent, not the server's full list.
+            // The agent always includes FinishTool and ThinkTool as defaults.
+            let mut tools: Vec<String> = AgentConfig::with_default_tools(llm_config.clone())
+                .tools
+                .unwrap_or_default()
+                .iter()
+                .map(|t| t.name.clone())
+                .collect();
+            tools.push("finish".to_string());
+            tools.push("think".to_string());
+            debug!("Agent tools: {:?}", tools);
+            state.tools_list = tools;
+        }
+
         AppCommand::ForceQuit => {
             state.should_exit = true;
             return Ok(true);
@@ -386,6 +405,8 @@ pub async fn resume_conversation(
     client: &AgentServerClient,
     event_stream: &mut Option<EventStream>,
     conv_id: uuid::Uuid,
+    llm_config: &LLMConfig,
+    args: &crate::cli::Args,
 ) -> bool {
     state.conversation_id = Some(conv_id);
 
@@ -406,8 +427,42 @@ pub async fn resume_conversation(
     state.pending_actions.clear();
     state.input_mode = crate::state::InputMode::Normal;
 
+    // Tell the agent server to load this conversation from disk.
+    // POST to /api/conversations with conversation_id set and no initial_message.
+    let workspace_dir = args.workspace.clone().unwrap_or_else(|| {
+        std::env::current_dir()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| ".".to_string())
+    });
+    let server_policy = match state.confirmation_policy {
+        ConfirmationPolicy::NeverConfirm => ServerConfirmationPolicy::NeverConfirm,
+        ConfirmationPolicy::AlwaysConfirm => ServerConfirmationPolicy::AlwaysConfirm,
+        ConfirmationPolicy::ConfirmRisky => ServerConfirmationPolicy::ConfirmRisky,
+    };
+    let request = StartConversationRequest {
+        agent: AgentConfig::with_default_tools(llm_config.clone()),
+        workspace: LocalWorkspace::new(workspace_dir),
+        initial_message: None,
+        conversation_id: Some(conv_id),
+        confirmation_policy: Some(server_policy),
+        security_analyzer: Some(SecurityAnalyzer::LLMSecurityAnalyzer),
+    };
+    match client.start_conversation(request).await {
+        Ok(info) => {
+            info!(
+                "Server loaded conversation {} (status: {:?})",
+                info.id, info.execution_status
+            );
+        }
+        Err(e) => {
+            warn!("Failed to load conversation on server: {}", e);
+        }
+    }
+
     // Connect WebSocket
-    if let Some(stream) = crate::client::try_connect_event_stream(client, conv_id, "resume").await {
+    if let Some(stream) =
+        crate::client::try_connect_event_stream(client, conv_id, "resume").await
+    {
         *event_stream = Some(stream);
         state.connected = true;
 

@@ -46,6 +46,13 @@ pub fn handle_key_event(
     if state.show_token_modal {
         return handle_token_modal(state, key);
     }
+    if state.show_tools_modal {
+        match key.code {
+            KeyCode::Esc | KeyCode::Enter => state.show_tools_modal = false,
+            _ => {}
+        }
+        return None;
+    }
     if state.skills_modal.show {
         return handle_skills_modal(state, key);
     }

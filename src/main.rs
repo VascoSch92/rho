@@ -75,37 +75,28 @@ async fn main() -> Result<()> {
     // Initialize logging - write to file when debug is enabled
     let log_level = if args.debug { "debug" } else { "warn" };
 
-    if args.debug {
-        // Write logs to .rho/rho.log so they're visible even with TUI
-        let log_path = rho_dir.join("rho.log");
-        let log_file = std::fs::File::create(&log_path).expect("Failed to create log file");
-        tracing_subscriber::registry()
-            .with(
-                tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level)),
-            )
-            .with(
-                tracing_subscriber::fmt::layer()
-                    .with_target(false)
-                    .with_ansi(false)
-                    .with_writer(std::sync::Mutex::new(log_file)),
-            )
-            .init();
-    } else {
-        tracing_subscriber::registry()
-            .with(
-                tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level)),
-            )
-            .with(tracing_subscriber::fmt::layer().with_target(false))
-            .init();
-    }
+    // Always write logs to .rho/rho.log (never to stderr — it corrupts the TUI).
+    // --debug enables debug-level logging, otherwise only warn+error are logged.
+    let log_path = rho_dir.join("rho.log");
+    let log_file = std::fs::File::create(&log_path).expect("Failed to create log file");
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level)),
+        )
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_target(false)
+                .with_ansi(false)
+                .with_writer(std::sync::Mutex::new(log_file)),
+        )
+        .init();
 
     info!("Starting Rho TUI");
     info!("Server: {}", args.server);
 
     // Start the embedded agent server in the background
-    let mut server_process = start_agent_server(&args.server, &rho_dir);
+    let mut server_process = start_agent_server(&args.server);
 
     // Run the TUI application (it will poll for server readiness)
     let result = run_app(args, server_process.is_some()).await;
@@ -118,7 +109,7 @@ async fn main() -> Result<()> {
 
 /// Start the OpenHands agent server from `dist/openhands-agent-server`.
 /// Returns None if the binary is not found.
-fn start_agent_server(server_url: &str, rho_dir: &std::path::Path) -> Option<Child> {
+fn start_agent_server(server_url: &str) -> Option<Child> {
     let parsed = url::Url::parse(server_url).ok()?;
     let host = parsed.host_str().unwrap_or("127.0.0.1").to_string();
     let port = parsed.port().unwrap_or(8000);
@@ -141,7 +132,10 @@ fn start_agent_server(server_url: &str, rho_dir: &std::path::Path) -> Option<Chi
     let mut cmd = Command::new(&dist_binary);
     cmd.args(["--port", &port.to_string(), "--host", &host]);
 
-    cmd.current_dir(rho_dir)
+    let server_data_dir = config::data_dir();
+    // Ensure conversations dir exists so the agent server can write to it
+    let _ = std::fs::create_dir_all(server_data_dir.join("conversations"));
+    cmd.current_dir(&server_data_dir)
         .env("OH_CONVERSATIONS_PATH", "conversations")
         .env("OH_BASH_EVENTS_DIR", "bash_events")
         .env("OPENHANDS_SUPPRESS_BANNER", "1")
@@ -501,7 +495,7 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     if let Some(conv_id) = resume_id {
         state.reset_conversation();
         info!("Resuming conversation {}", conv_id);
-        handlers::resume_conversation(&mut state, &client, &mut event_stream, conv_id).await;
+        handlers::resume_conversation(&mut state, &client, &mut event_stream, conv_id, &llm_config, &args).await;
     }
 
     // Main event loop
@@ -645,25 +639,24 @@ async fn process_websocket_events(
             state.process_event(event);
         }
 
-        // Check if stream is still connected — attempt reconnect if disconnected
+        // Check if stream is still connected — attempt reconnect only if running
         if !stream.is_connected() {
-            warn!("WebSocket disconnected, attempting to reconnect...");
-
-            if let Some(conv_id) = state.conversation_id {
-                if let Some(new_stream) =
-                    try_connect_event_stream(client, conv_id, "reconnect").await
-                {
-                    *event_stream = Some(new_stream);
-                    return;
-                }
-                // Only surface an error if we were supposed to be running
-                if state.is_running() {
+            if state.is_running() {
+                warn!("WebSocket disconnected, attempting to reconnect...");
+                if let Some(conv_id) = state.conversation_id {
+                    if let Some(new_stream) =
+                        try_connect_event_stream(client, conv_id, "reconnect").await
+                    {
+                        *event_stream = Some(new_stream);
+                        return;
+                    }
                     state.add_message(DisplayMessage::error(
                         "WebSocket disconnected. Reconnect failed.",
                     ));
                     state.execution_status = ExecutionStatus::Error;
                 }
             }
+            // Not running or reconnect failed — drop the stream silently
             *event_stream = None;
         }
     } else if let Some(conv_id) = state.conversation_id {

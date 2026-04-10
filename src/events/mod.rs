@@ -95,6 +95,35 @@ pub struct ActionEvent {
     pub security_risk: Option<SecurityRisk>,
 }
 
+impl ActionEvent {
+    /// Resolve the effective security risk.
+    ///
+    /// The server's top-level `security_risk` is often `UNKNOWN` because the
+    /// LLM security analyzer hasn't run yet. The LLM itself puts the real
+    /// risk inside `tool_call.arguments` as a `"security_risk"` JSON field.
+    /// This method checks both, preferring the top-level value when it's
+    /// meaningful and falling back to the arguments.
+    pub fn effective_risk(&self) -> SecurityRisk {
+        let top = self.security_risk.unwrap_or_default();
+        if top != SecurityRisk::Unknown {
+            return top;
+        }
+        // Parse from tool_call.arguments JSON
+        self.tool_call
+            .as_ref()
+            .and_then(|tc| tc.arguments.as_deref())
+            .and_then(|args| serde_json::from_str::<serde_json::Value>(args).ok())
+            .and_then(|val| val.get("security_risk")?.as_str().map(String::from))
+            .and_then(|s| match s.to_uppercase().as_str() {
+                "LOW" => Some(SecurityRisk::Low),
+                "MEDIUM" => Some(SecurityRisk::Medium),
+                "HIGH" => Some(SecurityRisk::High),
+                _ => None,
+            })
+            .unwrap_or(top)
+    }
+}
+
 /// Tool call info from the LLM
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCall {
@@ -124,6 +153,9 @@ pub struct MessageEvent {
     pub base: EventBase,
     pub llm_message: Option<LLMMessage>,
     pub sender: Option<String>,
+    /// Skills activated by this message (only populated for user messages).
+    #[serde(default)]
+    pub activated_skills: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

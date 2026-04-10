@@ -17,6 +17,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("resume", "Resume a previous conversation"),
     ("usage", "Show token usage"),
     ("skills", "Show loaded skills"),
+    ("tools", "Show available tools"),
     ("settings", "Show current settings"),
     ("theme", "Change color theme"),
     ("rename", "Rename the conversation"),

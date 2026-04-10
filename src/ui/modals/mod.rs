@@ -11,6 +11,7 @@ mod startup;
 pub mod tabs;
 mod theme;
 mod token;
+mod tools;
 
 pub use confirmation::{ConfirmOption, ConfirmationPanel};
 pub use exit::ExitConfirmationModal;
@@ -21,3 +22,4 @@ pub use skills::SkillsModal;
 pub use startup::StartupModal;
 pub use theme::ThemeModal;
 pub use token::TokenUsageModal;
+pub use tools::ToolsModal;

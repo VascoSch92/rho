@@ -99,7 +99,8 @@ impl<'a> MessageListWidget<'a> {
                 ]));
                 lines.push(Line::from(vec![
                     Span::styled("│ ", Style::default().fg(t.accent)),
-                    Span::styled("...", Style::default().fg(t.muted)),
+                    Span::styled("... ", Style::default().fg(t.muted)),
+                    Span::styled("(ctrl+e to expand)", Style::default().fg(t.muted)),
                 ]));
                 lines.push(Line::from(vec![Span::styled(
                     "└─",

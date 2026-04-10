@@ -19,6 +19,22 @@ impl AppState {
     pub fn process_event(&mut self, event: Event) {
         match event {
             Event::MessageEvent(msg) => {
+                // Show activated skills for user messages (even during live mode
+                // where the user message itself is already displayed locally).
+                if msg.base.source.as_deref() == Some("user") {
+                    tracing::debug!(
+                        "User message event: activated_skills={:?}",
+                        msg.activated_skills
+                    );
+                    if !msg.activated_skills.is_empty() {
+                        let skills = msg.activated_skills.join(", ");
+                        self.add_message(DisplayMessage::system(format!(
+                            "Activated skills: {}",
+                            skills
+                        )));
+                    }
+                }
+
                 // Skip user messages during live operation (already displayed locally).
                 // During replay, include them to rebuild history.
                 if !self.replaying && msg.base.source.as_deref() == Some("user") {
@@ -44,6 +60,19 @@ impl AppState {
                     action.summary,
                     action.thought
                 );
+
+                // Finish tool: display the message as a normal assistant response
+                if action.tool_name == "finish" {
+                    if let Some(message) = action
+                        .action
+                        .get("message")
+                        .and_then(|v| v.as_str())
+                    {
+                        self.add_message(DisplayMessage::assistant(message));
+                    }
+                    return;
+                }
+
                 let msg = DisplayMessage::action(&action);
                 self.add_message(msg);
 
@@ -157,10 +186,8 @@ impl AppState {
             ConfirmationPolicy::NeverConfirm => false,
             ConfirmationPolicy::AlwaysConfirm => true,
             ConfirmationPolicy::ConfirmRisky => {
-                matches!(
-                    action.security_risk,
-                    Some(SecurityRisk::Medium) | Some(SecurityRisk::High)
-                )
+                let risk = action.effective_risk();
+                matches!(risk, SecurityRisk::Medium | SecurityRisk::High)
             }
         }
     }
@@ -202,7 +229,7 @@ impl AppState {
                 .summary
                 .clone()
                 .unwrap_or_else(|| action.tool_name.clone()),
-            security_risk: action.security_risk.unwrap_or_default(),
+            security_risk: action.effective_risk(),
         });
         self.input_mode = InputMode::Confirmation;
         self.execution_status = ExecutionStatus::WaitingForConfirmation;

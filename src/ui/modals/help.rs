@@ -48,19 +48,6 @@ impl<'a> HelpModal<'a> {
     }
 }
 
-/// Slash commands: (key, description)
-const COMMANDS: &[(&str, &str)] = &[
-    ("/help", "Show this help"),
-    ("/new", "Start a new conversation"),
-    ("/resume", "Resume a previous conversation"),
-    ("/usage", "Show token usage details"),
-    ("/skills", "Show loaded skills"),
-    ("/settings", "Show current settings"),
-    ("/theme", "Change color theme"),
-    ("/rename", "Rename the current conversation"),
-    ("/confirm", "Show/change confirmation policy"),
-    ("/exit", "Exit the application"),
-];
 
 /// Keyboard shortcuts: (key, description)
 const SHORTCUTS: &[(&str, &str)] = &[
@@ -85,11 +72,11 @@ const TEXT_SELECTION: &[(&str, &str)] = &[
 ];
 
 impl HelpModal<'_> {
-    /// Commands tab: slash commands.
+    /// Commands tab: slash commands (sourced from the command menu).
     fn commands_pane(t: &Theme) -> Vec<Line<'static>> {
-        COMMANDS
+        crate::ui::command_menu::COMMANDS
             .iter()
-            .map(|(key, desc)| help_line(key, desc, t.primary, t.foreground))
+            .map(|(key, desc)| help_line(&format!("/{}", key), desc, t.primary, t.foreground))
             .collect()
     }
 

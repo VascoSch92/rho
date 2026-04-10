@@ -166,6 +166,7 @@ impl AgentConfig {
                 ToolConfig::new("terminal"),     // TerminalTool -> terminal
                 ToolConfig::new("file_editor"),  // FileEditorTool -> file_editor
                 ToolConfig::new("task_tracker"), // TaskTrackerTool -> task_tracker
+                ToolConfig::new("browser_tool_set"), // BrowserToolSet
             ]),
         }
     }

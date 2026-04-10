@@ -143,7 +143,7 @@ impl DisplayMessage {
             content,
             collapsed: true,
             tool_name: Some(event.tool_name.clone()),
-            security_risk: event.security_risk,
+            security_risk: Some(event.effective_risk()),
             accepted: false,
             thought,
         }

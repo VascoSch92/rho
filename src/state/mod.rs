@@ -85,6 +85,8 @@ pub struct AppState {
     // Modals
     pub show_token_modal: bool,
     pub token_modal_tab: usize,
+    pub show_tools_modal: bool,
+    pub tools_list: Vec<String>,
     pub skills_modal: SkillsModalState,
     pub show_help_modal: bool,
     pub help_modal_tab: usize,
@@ -205,6 +207,8 @@ impl AppState {
             exit_confirmation_selected: 0,
             show_token_modal: false,
             token_modal_tab: 0,
+            show_tools_modal: false,
+            tools_list: Vec::new(),
             skills_modal: SkillsModalState::default(),
             show_help_modal: false,
             help_modal_tab: 0,

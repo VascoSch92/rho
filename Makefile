@@ -10,7 +10,9 @@ CYAN := \033[36m
 RESET := \033[0m
 UNDERLINE := \033[4m
 
-.PHONY: build check-rust agent-server clean help
+PREFIX ?= $(HOME)/.local
+
+.PHONY: build check-rust agent-server install uninstall clean help
 
 # Default target
 .DEFAULT_GOAL := help
@@ -42,6 +44,24 @@ build: check-rust agent-server
 	@$(ECHO) "  Web mode:  $(CYAN)cargo run -- web$(RESET)"
 	@$(ECHO) "  Headless:  $(CYAN)cargo run -- headless --task \"...\"$(RESET)"
 
+install: check-rust
+	@$(ECHO) "$(CYAN)Building Rho (release)...$(RESET)"
+	@cargo build --release
+	@mkdir -p $(PREFIX)/bin
+	@cp target/release/rho $(PREFIX)/bin/rho
+	@chmod +x $(PREFIX)/bin/rho
+	@$(ECHO) "$(GREEN)Installed to $(PREFIX)/bin/rho$(RESET)"
+	@if ! echo "$$PATH" | tr ':' '\n' | grep -qx "$(PREFIX)/bin"; then \
+		$(ECHO) ""; \
+		$(ECHO) "$(YELLOW)WARNING: $(PREFIX)/bin is not in your PATH.$(RESET)"; \
+		$(ECHO) "  Add this to your shell profile:"; \
+		$(ECHO) "  $(CYAN)export PATH=\"$(PREFIX)/bin:\$$PATH\"$(RESET)"; \
+	fi
+
+uninstall:
+	@rm -f $(PREFIX)/bin/rho
+	@$(ECHO) "$(GREEN)Uninstalled rho from $(PREFIX)/bin$(RESET)"
+
 clean:
 	@$(ECHO) "$(YELLOW)Cleaning build artifacts...$(RESET)"
 	@cargo clean
@@ -56,6 +76,11 @@ help:
 	@$(ECHO) ""
 	@$(ECHO) "$(UNDERLINE)Commands:$(RESET)"
 	@$(ECHO) "  $(GREEN)build$(RESET)          Check toolchain, build agent server binary, and compile Rho"
+	@$(ECHO) "  $(GREEN)install$(RESET)        Build release binary and install to PREFIX/bin (default: ~/.local)"
+	@$(ECHO) "  $(GREEN)uninstall$(RESET)      Remove the installed binary"
 	@$(ECHO) "  $(GREEN)agent-server$(RESET)   Build only the OpenHands agent server binary into dist/"
 	@$(ECHO) "  $(GREEN)clean$(RESET)          Remove all build artifacts"
 	@$(ECHO) "  $(GREEN)help$(RESET)           Show this help message"
+	@$(ECHO) ""
+	@$(ECHO) "$(UNDERLINE)Options:$(RESET)"
+	@$(ECHO) "  $(GREEN)PREFIX$(RESET)         Install prefix (default: ~/.local). Example: make install PREFIX=/usr/local"
