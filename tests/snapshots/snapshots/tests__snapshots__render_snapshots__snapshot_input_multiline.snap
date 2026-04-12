@@ -1,0 +1,10 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+────────────────────────────────────────────────────────────
+ line one
+ line two
+ line three
+
+────────────────────────────────────────────────────────────

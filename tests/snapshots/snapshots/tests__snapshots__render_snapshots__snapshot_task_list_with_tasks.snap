@@ -1,0 +1,8 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+ ── Tasks (ctrl+t to close) ─────────────────────────────────────────────────
+  [x] Set up project structure
+  [>] Implement API client  in progress
+  [ ] Write tests

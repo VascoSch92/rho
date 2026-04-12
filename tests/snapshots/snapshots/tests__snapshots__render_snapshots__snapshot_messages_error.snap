@@ -1,0 +1,15 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+
+      ▄▄▄▄▄▄                 │  • wkr: .
+     █▀██▀▀▀█▄  █▄           │  • id:  ---
+       ██▄▄▄█▀  ██  v0.1.0   │  • Type /help for commands
+       ██▀▀█▄   ████▄ ▄███▄  │
+     ▄ ██  ██   ██ ██ ██ ██  │  Time to build something awesome
+     ▀██▀  ▀██▀▄██ ██▄▀███▀  │
+
+
+ ✗ Connection failed
+   Server returned 503

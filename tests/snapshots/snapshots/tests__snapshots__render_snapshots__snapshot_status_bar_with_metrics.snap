@@ -1,0 +1,5 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+Policy:     Auto-Approve | ⏱ 1m 35s | anthropic/claude-sonnet-4-5-20250929 | Context: [██░░░░░░░░] 25% (200k) | $0.06 | ↑ 12.5k ↓ 3.4k

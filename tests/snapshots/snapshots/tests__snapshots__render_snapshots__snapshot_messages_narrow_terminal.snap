@@ -1,0 +1,22 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+
+    ▄▄▄▄▄▄
+   █▀██▀▀▀█▄  █▄
+     ██▄▄▄█▀  ██  v0.1.0
+     ██▀▀█▄   ████▄ ▄███▄
+   ▄ ██  ██   ██ ██ ██ ██
+   ▀██▀  ▀██▀▄██ ██▄▀███▀
+
+   • wkr: .
+   • id:  ---
+   • Type /help for commands
+   Time to build something awesome
+
+
+ * A long message that should wrap in
+   a narrow terminal window
+
+  Short reply.

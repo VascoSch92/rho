@@ -1,0 +1,15 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+
+
+
+
+        ╭ Success ─────────────────────────────────╮
+        │                                          │
+        │  Skills loaded                           │
+        │                                          │
+        │                                          │
+        │  Press any key to dismiss                │
+        ╰──────────────────────────────────────────╯

@@ -1,0 +1,7 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+ Bash Mode ─────────────────────────────────────────────────
+ !ls -la
+────────────────────────────────────────────────────────────

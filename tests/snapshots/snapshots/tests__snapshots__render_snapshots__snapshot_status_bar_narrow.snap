@@ -1,0 +1,5 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+Policy:    Always Confirm | ⏱ 0s | anthropic/claude-sonnet-4

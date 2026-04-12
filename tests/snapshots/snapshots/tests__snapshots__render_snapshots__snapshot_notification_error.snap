@@ -1,0 +1,15 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+
+
+
+
+        ╭ Error ───────────────────────────────────╮
+        │                                          │
+        │  Connection lost                         │
+        │                                          │
+        │                                          │
+        │  Press any key to dismiss                │
+        ╰──────────────────────────────────────────╯
