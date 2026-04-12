@@ -37,6 +37,9 @@ agent-server:
 	@cp -R scripts/dist/openhands-agent-server dist/openhands-agent-server
 	@$(ECHO) "$(GREEN)Binary copied to dist/openhands-agent-server$(RESET)"
 
+profile-agent-server:
+	@bash scripts/profile-agent-server.sh
+
 build: check-rust agent-server
 	@$(ECHO) "$(CYAN)Building Rho...$(RESET)"
 	@cargo build

@@ -157,6 +157,32 @@ new_data = old_data + '''
 if old_data in txt:
     txt = txt.replace(old_data, new_data, 1)
 
+# 2b. Exclude unused stdlib / 3rd-party modules to speed up startup & shrink size
+import re
+EXCLUDES = [
+    # GUI toolkits — agent server is headless
+    'tkinter', '_tkinter', 'turtle', 'turtledemo', 'idlelib',
+    # Python's own test suite
+    'test', 'tests', 'unittest', 'pydoc', 'pydoc_data',
+    # Dev/build tooling
+    'distutils', 'lib2to3', 'pip', 'setuptools', 'wheel',
+    # Docs / notebooks (not needed at runtime)
+    'IPython', 'jupyter', 'notebook', 'sphinx', 'docutils',
+    # Scientific stack we don't use here
+    'matplotlib', 'scipy', 'sklearn', 'pandas.tests', 'numpy.tests',
+]
+old_excl = 'excludes=[]'
+new_excl = 'excludes=' + repr(EXCLUDES)
+if old_excl in txt:
+    txt = txt.replace(old_excl, new_excl, 1)
+else:
+    # Fallback: inject into Analysis(...) if excludes=[] isn't literal
+    txt = re.sub(
+        r'(Analysis\([^)]*?)hiddenimports=',
+        lambda m: m.group(1) + 'excludes=' + repr(EXCLUDES) + ',\\n    hiddenimports=',
+        txt, count=1, flags=re.DOTALL,
+    )
+
 # 3. Switch from one-file to one-dir (COLLECT step) for fast startup
 old_exe = '''exe = EXE(
     pyz,
@@ -184,7 +210,7 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     strip=True,
-    upx=True,
+    upx=False,
     name=\"openhands-agent-server\",
 )'''
 if old_exe_end in txt:
