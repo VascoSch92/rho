@@ -213,5 +213,6 @@ impl AppState {
         self.metrics.elapsed_seconds = 0;
         self.metrics.elapsed_base = 0;
         self.metrics.start_time = None;
+        self.active_skills.clear();
     }
 }

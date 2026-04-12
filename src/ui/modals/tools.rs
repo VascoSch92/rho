@@ -46,7 +46,9 @@ impl Widget for ToolsModal<'_> {
                     Span::styled(" ", Style::default()),
                     Span::styled(
                         tool.clone(),
-                        Style::default().fg(t.foreground).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(t.foreground)
+                            .add_modifier(Modifier::BOLD),
                     ),
                 ]));
             }

@@ -107,8 +107,10 @@ fn parse_missing_fields_no_panic() {
 
 #[test]
 fn context_window_zero_not_stored() {
-    let mut m = MetricsState::default();
-    m.context_window = 128000;
+    let mut m = MetricsState {
+        context_window: 128000,
+        ..MetricsState::default()
+    };
     m.parse(&json!({
         "accumulated_token_usage": {
             "context_window": 0
@@ -120,8 +122,10 @@ fn context_window_zero_not_stored() {
 
 #[test]
 fn usage_to_metrics_resets_before_accumulate() {
-    let mut m = MetricsState::default();
-    m.prompt_tokens = 999;
+    let mut m = MetricsState {
+        prompt_tokens: 999,
+        ..MetricsState::default()
+    };
     m.parse(&json!({
         "usage_to_metrics": {
             "x": {

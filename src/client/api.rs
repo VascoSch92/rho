@@ -144,6 +144,16 @@ impl ToolConfig {
     }
 }
 
+/// Agent context configuration for skills and prompt extensions.
+/// Passed as `agent_context` inside the `Agent` payload.
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentContextConfig {
+    #[serde(default)]
+    pub load_user_skills: bool,
+    #[serde(default)]
+    pub load_public_skills: bool,
+}
+
 /// Agent configuration
 /// Uses `kind: "Agent"` for discriminated union support
 #[derive(Debug, Clone, Serialize)]
@@ -153,6 +163,8 @@ pub struct AgentConfig {
     pub llm: LLMConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<ToolConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_context: Option<AgentContextConfig>,
 }
 
 impl AgentConfig {
@@ -163,11 +175,15 @@ impl AgentConfig {
             kind: "Agent",
             llm,
             tools: Some(vec![
-                ToolConfig::new("terminal"),     // TerminalTool -> terminal
-                ToolConfig::new("file_editor"),  // FileEditorTool -> file_editor
-                ToolConfig::new("task_tracker"), // TaskTrackerTool -> task_tracker
+                ToolConfig::new("terminal"),         // TerminalTool -> terminal
+                ToolConfig::new("file_editor"),      // FileEditorTool -> file_editor
+                ToolConfig::new("task_tracker"),     // TaskTrackerTool -> task_tracker
                 ToolConfig::new("browser_tool_set"), // BrowserToolSet
             ]),
+            agent_context: Some(AgentContextConfig {
+                load_user_skills: true,
+                load_public_skills: true,
+            }),
         }
     }
 }
@@ -209,6 +225,15 @@ pub struct StartConversationRequest {
 
 /// Health check response - server returns plain "OK" string
 pub struct HealthResponse {}
+
+/// Server metadata returned by `GET /`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ServerInfo {
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub version: String,
+}
 
 // ── Skills ──────────────────────────────────────────────────────────────────
 
@@ -277,6 +302,20 @@ impl AgentServerClient {
             req = req.header("X-Session-API-Key", key);
         }
         req
+    }
+
+    /// Get server metadata (title, version) from `GET /`.
+    pub async fn get_server_info(&self) -> Result<ServerInfo> {
+        let resp = self.request(reqwest::Method::GET, "/").send().await?;
+
+        if !resp.status().is_success() {
+            return Err(ClientError::Server {
+                status: resp.status().as_u16(),
+                message: resp.text().await.unwrap_or_default(),
+            });
+        }
+
+        Ok(resp.json().await?)
     }
 
     /// Check server health
@@ -383,6 +422,34 @@ impl AgentServerClient {
         }
 
         Ok(())
+    }
+
+    /// Ask the agent a one-shot question without affecting the conversation.
+    /// Endpoint: POST /api/conversations/{id}/ask_agent
+    pub async fn ask_agent(&self, conversation_id: Uuid, question: &str) -> Result<String> {
+        let body = serde_json::json!({ "question": question });
+
+        let resp = self
+            .request(
+                reqwest::Method::POST,
+                &format!("/api/conversations/{}/ask_agent", conversation_id),
+            )
+            .json(&body)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status().as_u16();
+            let message = resp.text().await.unwrap_or_default();
+            return Err(ClientError::Server { status, message });
+        }
+
+        let val: serde_json::Value = resp.json().await?;
+        Ok(val
+            .get("response")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string())
     }
 
     /// Pause the conversation

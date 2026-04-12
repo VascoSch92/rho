@@ -12,6 +12,7 @@ use crate::state::AppState;
 
 /// Available slash commands
 pub const COMMANDS: &[(&str, &str)] = &[
+    ("btw", "Ask a one-shot question to the agent"),
     ("help", "Show available commands"),
     ("new", "Start a new conversation"),
     ("resume", "Resume a previous conversation"),

@@ -50,6 +50,8 @@ pub struct DisplayMessage {
     pub security_risk: Option<SecurityRisk>,
     pub accepted: bool,
     pub thought: Option<String>,
+    /// Skills activated by this message (populated for user messages).
+    pub activated_skills: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,6 +62,7 @@ pub enum MessageRole {
     Action,
     Error,
     Terminal,
+    Btw,
 }
 
 impl DisplayMessage {
@@ -73,6 +76,7 @@ impl DisplayMessage {
             security_risk: None,
             accepted: false,
             thought: None,
+            activated_skills: Vec::new(),
         }
     }
 
@@ -86,6 +90,7 @@ impl DisplayMessage {
             security_risk: None,
             accepted: false,
             thought: None,
+            activated_skills: Vec::new(),
         }
     }
 
@@ -99,6 +104,7 @@ impl DisplayMessage {
             security_risk: None,
             accepted: false,
             thought: None,
+            activated_skills: Vec::new(),
         }
     }
 
@@ -146,6 +152,7 @@ impl DisplayMessage {
             security_risk: Some(event.effective_risk()),
             accepted: false,
             thought,
+            activated_skills: Vec::new(),
         }
     }
 
@@ -159,6 +166,7 @@ impl DisplayMessage {
             security_risk: None,
             accepted: false,
             thought: None,
+            activated_skills: Vec::new(),
         }
     }
 
@@ -172,8 +180,33 @@ impl DisplayMessage {
             security_risk: None,
             accepted: false,
             thought: None,
+            activated_skills: Vec::new(),
         }
     }
+
+    pub fn btw(question: &str, answer: impl Into<String>) -> Self {
+        Self {
+            id: None,
+            role: MessageRole::Btw,
+            content: format!("{}\n{}", question, answer.into()),
+            collapsed: false,
+            tool_name: None,
+            security_risk: None,
+            accepted: false,
+            thought: None,
+            activated_skills: Vec::new(),
+        }
+    }
+}
+
+/// A task from the task_tracker tool.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct TaskItem {
+    pub title: String,
+    #[serde(default)]
+    pub notes: String,
+    #[serde(default)]
+    pub status: String,
 }
 
 /// Pending action awaiting confirmation

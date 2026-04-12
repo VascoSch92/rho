@@ -42,6 +42,12 @@ pub fn handle_key_event(
         }
     }
 
+    // Ctrl+T: toggle task list visibility
+    if key.code == KeyCode::Char('t') && key.modifiers == KeyModifiers::CONTROL {
+        state.tasks_visible = !state.tasks_visible;
+        return None;
+    }
+
     // ── Modal dispatch ───────────────────────────────────────────────────
     if state.show_token_modal {
         return handle_token_modal(state, key);
@@ -545,6 +551,13 @@ fn handle_normal_input(state: &mut AppState, key: event::KeyEvent) -> Option<App
                     if !cmd.is_empty() {
                         return Some(AppCommand::RunBashCommand(cmd.to_string()));
                     }
+                }
+                // Display the user message immediately so it appears in the
+                // conversation before the (possibly slow) async send kicks in.
+                // Skip display if agent is busy — will be shown when dequeued
+                // so order stays PROMPT_1, ANSWER_1, PROMPT_2, ANSWER_2.
+                if !(state.conversation_id.is_some() && state.is_running()) {
+                    state.add_message(crate::state::DisplayMessage::user(&input));
                 }
                 return Some(AppCommand::SendMessage(input));
             }

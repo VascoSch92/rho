@@ -36,7 +36,7 @@ pub use modals::{
 pub use settings::SettingsState;
 pub use types::{
     ConfirmationPolicy, DisplayMessage, InputMode, MessageRole, Notification, NotificationSeverity,
-    PendingAction,
+    PendingAction, TaskItem,
 };
 
 /// CLI version
@@ -87,6 +87,14 @@ pub struct AppState {
     pub token_modal_tab: usize,
     pub show_tools_modal: bool,
     pub tools_list: Vec<String>,
+
+    // Task tracker
+    pub tasks: Vec<TaskItem>,
+    pub tasks_visible: bool,
+    /// Skills activated for the current conversation turn.
+    pub active_skills: Vec<String>,
+    /// Sender for background /btw responses.
+    pub btw_sender: Option<tokio::sync::mpsc::UnboundedSender<(String, Result<String, String>)>>,
     pub skills_modal: SkillsModalState,
     pub show_help_modal: bool,
     pub help_modal_tab: usize,
@@ -209,6 +217,10 @@ impl AppState {
             token_modal_tab: 0,
             show_tools_modal: false,
             tools_list: Vec::new(),
+            tasks: Vec::new(),
+            tasks_visible: true,
+            active_skills: Vec::new(),
+            btw_sender: None,
             skills_modal: SkillsModalState::default(),
             show_help_modal: false,
             help_modal_tab: 0,

@@ -3,13 +3,14 @@
 pub mod command_menu;
 pub mod file_menu;
 pub mod formatting;
-mod input;
+pub mod input;
 mod layout;
 pub mod markdown;
-mod messages;
+pub mod messages;
 pub mod modals;
-mod spinner;
-mod status;
+pub mod spinner;
+pub mod status;
+pub mod tasks;
 
 pub use layout::render;
 pub use modals::ConfirmOption;

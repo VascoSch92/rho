@@ -106,7 +106,7 @@ impl<'a> SkillsModal<'a> {
                 Span::styled("  Drop ", Style::default().fg(t.muted)),
                 Span::styled("SKILL.md", Style::default().fg(t.accent)),
                 Span::styled(" files in ", Style::default().fg(t.muted)),
-                Span::styled(".openhands/skills/", Style::default().fg(t.accent)),
+                Span::styled(".rho/skills/", Style::default().fg(t.accent)),
             ]));
             return lines;
         }

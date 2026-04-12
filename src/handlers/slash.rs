@@ -90,6 +90,20 @@ pub fn handle_slash_command(command: &str, state: &mut AppState) -> Option<AppCo
                 None
             }
         }
+        Some("btw") => {
+            let question = parts[1..].join(" ");
+            if question.is_empty() {
+                state.add_message(DisplayMessage::error("Usage: /btw <question>"));
+                None
+            } else if state.conversation_id.is_none() {
+                state.add_message(DisplayMessage::error(
+                    "No active conversation. Start one first.",
+                ));
+                None
+            } else {
+                Some(AppCommand::AskAgent(question))
+            }
+        }
         Some("rename") => {
             let new_name = parts[1..].join(" ");
             if new_name.is_empty() {

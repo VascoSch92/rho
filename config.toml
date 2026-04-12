@@ -1,6 +1,13 @@
 # ── Rho Configuration ─────────────────────────────────────────────────────────
-# Copy this file to ~/.config/rho/config.toml to customise Rho.
+# Copy this file to ~/.rho/config.toml to customise Rho.
 # All sections and keys are optional — defaults are used for anything omitted.
+
+# ── Agent Server ──────────────────────────────────────────────────────────────
+# Pinned version of the OpenHands Agent Server.
+# Used by scripts/build-agent-server.sh to clone the correct tag, and at
+# runtime to verify the server is compatible.
+[agent_server]
+version = "1.16.1"
 
 # ── LLM ───────────────────────────────────────────────────────────────────────
 # LLM settings are persisted here when changed via /settings.

@@ -37,12 +37,12 @@ use config::RhoConfig;
 use handlers::{handle_key_event, process_command};
 use state::{AppState, DisplayMessage, Notification};
 
-/// Ensure the .rho data directory exists and return its path.
-/// The agent server creates `workspace/conversations/` inside this directory.
-fn ensure_rho_dir() -> std::path::PathBuf {
-    let rho_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".rho");
-    std::fs::create_dir_all(&rho_dir).expect("Failed to create .rho/");
-    rho_dir
+/// Ensure the ~/.rho data directory exists and return its path.
+/// The agent server creates `conversations/` inside this directory.
+fn ensure_data_dir() -> std::path::PathBuf {
+    let dir = config::data_dir();
+    std::fs::create_dir_all(&dir).expect("Failed to create ~/.rho/");
+    dir
 }
 
 #[tokio::main]
@@ -70,14 +70,14 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let rho_dir = ensure_rho_dir();
+    let data_dir = ensure_data_dir();
 
     // Initialize logging - write to file when debug is enabled
     let log_level = if args.debug { "debug" } else { "warn" };
 
-    // Always write logs to .rho/rho.log (never to stderr — it corrupts the TUI).
+    // Always write logs to ~/.rho/rho.log (never to stderr — it corrupts the TUI).
     // --debug enables debug-level logging, otherwise only warn+error are logged.
-    let log_path = rho_dir.join("rho.log");
+    let log_path = data_dir.join("rho.log");
     let log_file = std::fs::File::create(&log_path).expect("Failed to create log file");
     tracing_subscriber::registry()
         .with(
@@ -95,45 +95,122 @@ async fn main() -> Result<()> {
     info!("Starting Rho TUI");
     info!("Server: {}", args.server);
 
-    // Start the embedded agent server in the background
-    let mut server_process = start_agent_server(&args.server);
+    // Load config early so the pinned server version is available
+    let config = RhoConfig::load();
+
+    // Try to start or reuse the agent server
+    let (mut server_process, server_reused) =
+        start_or_reuse_agent_server(&args.server, &config.agent_server_version).await;
 
     // Run the TUI application (it will poll for server readiness)
-    let result = run_app(args, server_process.is_some()).await;
+    let launched = server_process.is_some() || server_reused;
+    let result = run_app(args, launched && !server_reused, config).await;
 
-    // Stop the agent server on exit (kill the whole process group)
+    // Stop the agent server on exit — only if we spawned it ourselves
     stop_agent_server(&mut server_process);
 
     result
 }
 
-/// Start the OpenHands agent server from `dist/openhands-agent-server`.
-/// Returns None if the binary is not found.
-fn start_agent_server(server_url: &str) -> Option<Child> {
-    let parsed = url::Url::parse(server_url).ok()?;
+/// Expected title in the `GET /` response to identify an OpenHands agent server.
+const EXPECTED_SERVER_TITLE: &str = "OpenHands Agent Server";
+
+/// Check whether `version` satisfies the minimum version requirement.
+fn version_is_compatible(version: &str, min_version: &str) -> bool {
+    let parse = |v: &str| -> Option<(u32, u32, u32)> {
+        let mut parts = v.split('.');
+        let major = parts.next()?.parse().ok()?;
+        let minor = parts.next()?.parse().ok()?;
+        let patch = parts.next().and_then(|p| p.parse().ok()).unwrap_or(0);
+        Some((major, minor, patch))
+    };
+    match (parse(version), parse(min_version)) {
+        (Some(v), Some(min)) => v >= min,
+        _ => false,
+    }
+}
+
+/// Try to reuse an existing agent server on the target port, or launch a new one.
+///
+/// Returns `(Option<Child>, reused)`:
+/// - `(Some(child), false)` — we spawned a new server process
+/// - `(None, true)` — an existing compatible server is already running
+/// - `(None, false)` — no server available (binary not found, port occupied by
+///   something else, or version mismatch)
+async fn start_or_reuse_agent_server(
+    server_url: &str,
+    pinned_version: &str,
+) -> (Option<Child>, bool) {
+    let parsed = match url::Url::parse(server_url) {
+        Ok(p) => p,
+        Err(_) => return (None, false),
+    };
     let host = parsed.host_str().unwrap_or("127.0.0.1").to_string();
     let port = parsed.port().unwrap_or(8000);
 
-    let dist_binary = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("dist")
-        .join("openhands-agent-server")
-        .join("openhands-agent-server");
+    // ── 1. Probe the port for an existing agent server ──────────────────
+    let probe_client = AgentServerClient::new(server_url, None);
+    if let Ok(info) = probe_client.get_server_info().await {
+        if info.title == EXPECTED_SERVER_TITLE {
+            if version_is_compatible(&info.version, pinned_version) {
+                info!(
+                    "Reusing existing agent server on port {} (version {})",
+                    port, info.version
+                );
+                return (None, true);
+            }
+            warn!(
+                "Agent server on port {} has version {} (minimum required: {}). \
+                 Please rebuild the agent server.",
+                port, info.version, pinned_version
+            );
+            return (None, false);
+        }
+        // Something else is on this port
+        warn!(
+            "Port {} is occupied by another service (\"{}\"), not an agent server. \
+             Use --server to specify a different URL.",
+            port, info.title
+        );
+        return (None, false);
+    }
+
+    // ── 2. Nothing responded — find the agent server binary ────────────
+    //
+    // Search order:
+    //   1. Next to the rho binary:  <rho_dir>/openhands-agent-server/openhands-agent-server
+    //   2. Development location:    <CARGO_MANIFEST_DIR>/dist/openhands-agent-server/openhands-agent-server
+    let dist_binary = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .map(|d| {
+            d.join("openhands-agent-server")
+                .join("openhands-agent-server")
+        })
+        .filter(|p| p.exists())
+        .unwrap_or_else(|| {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("dist")
+                .join("openhands-agent-server")
+                .join("openhands-agent-server")
+        });
 
     if !dist_binary.exists() {
         warn!(
             "Agent server binary not found at {}.",
             dist_binary.display()
         );
-        return None;
+        return (None, false);
     }
 
+    // ── 3. Launch the embedded server ───────────────────────────────────
     info!("Starting agent server on {}:{}", host, port);
 
     let mut cmd = Command::new(&dist_binary);
     cmd.args(["--port", &port.to_string(), "--host", &host]);
 
     let server_data_dir = config::data_dir();
-    // Ensure conversations dir exists so the agent server can write to it
+    info!("Agent server data dir: {}", server_data_dir.display());
     let _ = std::fs::create_dir_all(server_data_dir.join("conversations"));
     cmd.current_dir(&server_data_dir)
         .env("OH_CONVERSATIONS_PATH", "conversations")
@@ -142,7 +219,6 @@ fn start_agent_server(server_url: &str) -> Option<Child> {
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
 
-    // Start in its own process group so we can kill all sub-processes on exit
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -152,11 +228,11 @@ fn start_agent_server(server_url: &str) -> Option<Child> {
     match cmd.spawn() {
         Ok(child) => {
             info!("Agent server started (pid={})", child.id());
-            Some(child)
+            (Some(child), false)
         }
         Err(e) => {
             warn!("Failed to start agent server: {}", e);
-            None
+            (None, false)
         }
     }
 }
@@ -308,7 +384,7 @@ fn print_goodbye(conversation_id: Option<uuid::Uuid>) {
     println!();
 }
 
-async fn run_app(args: Args, server_launched: bool) -> Result<()> {
+async fn run_app(args: Args, server_launched: bool, mut config: RhoConfig) -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -327,13 +403,11 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
     // Hide the blinking terminal cursor - we render our own visual cursor
     terminal.hide_cursor()?;
 
-    // Load configuration (from ~/.config/rho/config.toml or defaults)
-    let mut config = RhoConfig::load();
-    // Priority: CLI flag > .rho/config.toml > embedded default
+    // Priority: CLI flag > ~/.rho/config.toml > embedded default
     if let Some(ref theme) = args.theme {
         config.theme_name = theme.clone();
     }
-    // Always persist the resolved theme to .rho/config.toml
+    // Always persist the resolved theme to ~/.rho/config.toml
     if let Err(e) = crate::config::save_theme(&config.theme_name) {
         tracing::warn!("Failed to save theme: {}", e);
     }
@@ -408,7 +482,7 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
         return Err(anyhow::anyhow!("LLM_API_KEY is required"));
     };
 
-    // Persist env overrides to .rho/config.toml so they survive restarts
+    // Persist env overrides to ~/.rho/config.toml so they survive restarts
     if args.override_with_envs {
         if let Err(e) = crate::config::save_llm(
             &effective_model,
@@ -473,7 +547,7 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
             match state::conversations::scan_conversations().first() {
                 Some(conv) => match uuid::Uuid::parse_str(&conv.id) {
                     Ok(id) => {
-                        println!("Resuming latest conversation: {}", id);
+                        info!("Resuming latest conversation: {}", id);
                         Some(id)
                     }
                     Err(e) => {
@@ -493,10 +567,38 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
     // Handle --resume / --last: replay events and connect WebSocket
     if let Some(conv_id) = resume_id {
+        // If we launched the server, wait for it to be ready before resuming
+        if server_launched {
+            info!("Waiting for agent server before resuming...");
+            for _ in 0..150 {
+                // Up to 30s (150 × 200ms)
+                if client.health().await.is_ok() {
+                    state.server_starting = false;
+                    state.connected = true;
+                    info!("Agent server ready");
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+        }
+
         state.reset_conversation();
         info!("Resuming conversation {}", conv_id);
-        handlers::resume_conversation(&mut state, &client, &mut event_stream, conv_id, &llm_config, &args).await;
+        handlers::resume_conversation(
+            &mut state,
+            &client,
+            &mut event_stream,
+            conv_id,
+            &llm_config,
+            &args,
+        )
+        .await;
     }
+
+    // Channel for background /btw responses
+    let (btw_tx, mut btw_rx) =
+        tokio::sync::mpsc::unbounded_channel::<(String, Result<String, String>)>();
+    state.btw_sender = Some(btw_tx);
 
     // Main event loop
     let tick_rate = Duration::from_millis(100);
@@ -535,6 +637,10 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
                 Event::Key(key) => {
                     // Handle key events based on current mode
                     if let Some(cmd) = handle_key_event(&mut state, key, &args) {
+                        // Redraw before processing so the user sees their
+                        // message in the conversation immediately (the input
+                        // bar is already cleared by take_input).
+                        terminal.draw(|f| ui::render(f, &state))?;
                         if process_command(
                             &mut state,
                             &client,
@@ -566,6 +672,22 @@ async fn run_app(args: Args, server_launched: bool) -> Result<()> {
 
         // Drain WebSocket events and handle reconnect / lazy connect
         process_websocket_events(&mut state, &client, &mut event_stream).await;
+
+        // Drain /btw background responses
+        while let Ok((question, result)) = btw_rx.try_recv() {
+            // Remove the "Asking agent..." placeholder
+            if let Some(pos) = state.messages.iter().rposition(|m| {
+                m.role == state::types::MessageRole::Btw && m.content.starts_with(&question)
+            }) {
+                state.messages.remove(pos);
+            }
+            match result {
+                Ok(answer) => state.add_message(DisplayMessage::btw(&question, answer)),
+                Err(e) => {
+                    state.add_message(DisplayMessage::btw(&question, format!("Error: {}", e)))
+                }
+            }
+        }
 
         // Fetch stats when execution finishes (server doesn't push metrics via WebSocket)
         refresh_stats_if_needed(&mut state, &client).await;

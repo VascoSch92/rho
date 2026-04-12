@@ -16,6 +16,7 @@ use super::{
     },
     spinner::{spinner_height, SpinnerWidget},
     status::{BottomStatusBar, NotificationWidget},
+    tasks::{task_list_height, TaskListWidget},
 };
 use crate::state::AppState;
 
@@ -26,10 +27,12 @@ pub fn render(frame: &mut Frame, state: &AppState) {
     // Calculate dynamic heights
     let input_h = input_height(state);
     let spinner_h = spinner_height(state);
+    let tasks_h = task_list_height(state);
 
-    // Main vertical layout: messages, spinner, input, status bar
+    // Main vertical layout: messages, tasks, spinner, input, status bar
     let chunks = Layout::vertical([
         Constraint::Min(8),            // Messages area
+        Constraint::Length(tasks_h),   // Task list (0 when empty)
         Constraint::Length(spinner_h), // Spinner (1 when running, 0 otherwise)
         Constraint::Length(input_h),   // Input area
         Constraint::Length(1),         // Bottom status bar
@@ -38,9 +41,10 @@ pub fn render(frame: &mut Frame, state: &AppState) {
 
     // Render main components
     frame.render_widget(MessageListWidget::new(state), chunks[0]);
-    frame.render_widget(SpinnerWidget::new(state), chunks[1]);
-    frame.render_widget(InputWidget::new(state), chunks[2]);
-    frame.render_widget(BottomStatusBar::new(state), chunks[3]);
+    frame.render_widget(TaskListWidget::new(state), chunks[1]);
+    frame.render_widget(SpinnerWidget::new(state), chunks[2]);
+    frame.render_widget(InputWidget::new(state), chunks[3]);
+    frame.render_widget(BottomStatusBar::new(state), chunks[4]);
 
     // Render overlays
     // Command menu (if typing a slash command)

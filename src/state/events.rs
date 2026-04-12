@@ -3,7 +3,9 @@
 use crate::client::ExecutionStatus;
 use crate::events::{ActionEvent, Event, SecurityRisk};
 
-use super::types::{ConfirmationPolicy, DisplayMessage, InputMode, MessageRole, PendingAction};
+use super::types::{
+    ConfirmationPolicy, DisplayMessage, InputMode, MessageRole, PendingAction, TaskItem,
+};
 use super::AppState;
 
 impl AppState {
@@ -19,19 +21,25 @@ impl AppState {
     pub fn process_event(&mut self, event: Event) {
         match event {
             Event::MessageEvent(msg) => {
-                // Show activated skills for user messages (even during live mode
-                // where the user message itself is already displayed locally).
+                // Attach activated skills to the most recent user message in
+                // the display (the one already shown locally before the server
+                // echoed it back).
                 if msg.base.source.as_deref() == Some("user") {
                     tracing::debug!(
                         "User message event: activated_skills={:?}",
                         msg.activated_skills
                     );
                     if !msg.activated_skills.is_empty() {
-                        let skills = msg.activated_skills.join(", ");
-                        self.add_message(DisplayMessage::system(format!(
-                            "Activated skills: {}",
-                            skills
-                        )));
+                        self.active_skills = msg.activated_skills.clone();
+                        // Find the last user message and attach skills to it.
+                        if let Some(last_user) = self
+                            .messages
+                            .iter_mut()
+                            .rev()
+                            .find(|m| m.role == MessageRole::User)
+                        {
+                            last_user.activated_skills = msg.activated_skills.clone();
+                        }
                     }
                 }
 
@@ -44,11 +52,15 @@ impl AppState {
                 if let Some(text) = msg.get_text() {
                     if let Some(ref llm_msg) = msg.llm_message {
                         tracing::debug!("Agent message [{}]: {}", llm_msg.role, text);
-                        let display_msg = match llm_msg.role.as_str() {
+                        let mut display_msg = match llm_msg.role.as_str() {
                             "user" => DisplayMessage::user(text),
                             "assistant" => DisplayMessage::assistant(text),
                             _ => DisplayMessage::system(text),
                         };
+                        // During replay, attach skills directly to the user message.
+                        if llm_msg.role == "user" && !msg.activated_skills.is_empty() {
+                            display_msg.activated_skills = msg.activated_skills.clone();
+                        }
                         self.add_message(display_msg);
                     }
                 }
@@ -63,14 +75,23 @@ impl AppState {
 
                 // Finish tool: display the message as a normal assistant response
                 if action.tool_name == "finish" {
-                    if let Some(message) = action
-                        .action
-                        .get("message")
-                        .and_then(|v| v.as_str())
-                    {
+                    if let Some(message) = action.action.get("message").and_then(|v| v.as_str()) {
                         self.add_message(DisplayMessage::assistant(message));
                     }
                     return;
+                }
+
+                // Task tracker: update the task list from the action payload
+                if action.tool_name == "task_tracker" {
+                    if let Some(task_list) = action.action.get("task_list") {
+                        if let Ok(tasks) =
+                            serde_json::from_value::<Vec<TaskItem>>(task_list.clone())
+                        {
+                            tracing::debug!("Task tracker: {} tasks", tasks.len());
+                            self.tasks = tasks;
+                            self.tasks_visible = true;
+                        }
+                    }
                 }
 
                 let msg = DisplayMessage::action(&action);
@@ -95,6 +116,18 @@ impl AppState {
                                 msg.accepted = true;
                                 break;
                             }
+                        }
+                    }
+                }
+
+                // Task tracker: update task list from the observation result
+                if obs.tool_name == "task_tracker" {
+                    if let Some(task_list) = obs.observation.get("task_list") {
+                        if let Ok(tasks) =
+                            serde_json::from_value::<Vec<TaskItem>>(task_list.clone())
+                        {
+                            tracing::debug!("Task tracker observation: {} tasks", tasks.len());
+                            self.tasks = tasks;
                         }
                     }
                 }

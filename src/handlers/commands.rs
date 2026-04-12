@@ -7,7 +7,7 @@ use super::AppCommand;
 use crate::cli::Args;
 use crate::client::{
     AgentConfig, AgentServerClient, EventStream, ExecutionStatus, LLMConfig, LocalWorkspace,
-    SecurityAnalyzer, SendMessageRequest, ServerConfirmationPolicy, StartConversationRequest,
+    SecurityAnalyzer, ServerConfirmationPolicy, StartConversationRequest,
 };
 use crate::state::{AppState, ConfirmationPolicy, DisplayMessage, InputMode, Notification};
 
@@ -34,8 +34,9 @@ pub async fn process_command(
                 return Ok(false);
             }
 
-            // Add user message to display
-            state.add_message(DisplayMessage::user(&message));
+            // (User message was already displayed by the input handler
+            // before this async command was invoked, so it appears instantly
+            // even though conversation creation may take a moment.)
 
             // Ensure we have a conversation
             if state.conversation_id.is_none() {
@@ -54,10 +55,13 @@ pub async fn process_command(
                     ConfirmationPolicy::ConfirmRisky => ServerConfirmationPolicy::ConfirmRisky,
                 };
 
+                // Start conversation without initial_message so we can
+                // connect the WebSocket first and receive the user
+                // MessageEvent (which carries activated_skills).
                 let request = StartConversationRequest {
                     agent: AgentConfig::with_default_tools(llm_config.clone()),
                     workspace: LocalWorkspace::new(workspace_dir),
-                    initial_message: Some(SendMessageRequest::user(&message).with_run()),
+                    initial_message: None,
                     conversation_id: None,
                     confirmation_policy: Some(server_policy),
                     security_analyzer: Some(SecurityAnalyzer::LLMSecurityAnalyzer),
@@ -69,7 +73,7 @@ pub async fn process_command(
                         state.conversation_title = info.title;
                         info!("Started conversation: {}", info.id);
 
-                        // Connect to WebSocket for events
+                        // Connect WebSocket BEFORE sending the message
                         let ws_url = client.conversation_websocket_url(info.id);
                         match EventStream::connect(&ws_url).await {
                             Ok(stream) => {
@@ -85,10 +89,21 @@ pub async fn process_command(
                             }
                         }
 
-                        // Conversation starts running automatically with initial_message
+                        // Now send the message so the WebSocket receives
+                        // the echoed user event with activated_skills.
                         state.start_timer();
                         state.randomize_spinner();
                         state.execution_status = ExecutionStatus::Running;
+
+                        if let Err(e) = client.send_message(info.id, &message, true).await {
+                            error!("Failed to send initial message: {}", e);
+                            state.add_message(DisplayMessage::error(format!(
+                                "Failed to send message: {}",
+                                e
+                            )));
+                            state.execution_status = ExecutionStatus::Idle;
+                            return Ok(false);
+                        }
                     }
                     Err(e) => {
                         error!("Failed to start conversation: {}", e);
@@ -107,11 +122,59 @@ pub async fn process_command(
                 state.start_timer();
                 state.randomize_spinner();
                 state.execution_status = ExecutionStatus::Running;
-                if let Err(e) = client.send_message(conv_id, &message, true).await {
+                let mut send_result = client.send_message(conv_id, &message, true).await;
+
+                // If the send failed (server lost conversation, transient error),
+                // re-load the conversation on the server and retry once.
+                if send_result.is_err() {
+                    info!("Send failed, re-loading conversation on server and retrying...");
+                    let workspace_dir = args.workspace.clone().unwrap_or_else(|| {
+                        std::env::current_dir()
+                            .map(|p| p.to_string_lossy().to_string())
+                            .unwrap_or_else(|_| ".".to_string())
+                    });
+                    let server_policy = match state.confirmation_policy {
+                        ConfirmationPolicy::NeverConfirm => ServerConfirmationPolicy::NeverConfirm,
+                        ConfirmationPolicy::AlwaysConfirm => {
+                            ServerConfirmationPolicy::AlwaysConfirm
+                        }
+                        ConfirmationPolicy::ConfirmRisky => ServerConfirmationPolicy::ConfirmRisky,
+                    };
+                    let request = StartConversationRequest {
+                        agent: AgentConfig::with_default_tools(llm_config.clone()),
+                        workspace: LocalWorkspace::new(workspace_dir),
+                        initial_message: None,
+                        conversation_id: Some(conv_id),
+                        confirmation_policy: Some(server_policy),
+                        security_analyzer: Some(SecurityAnalyzer::LLMSecurityAnalyzer),
+                    };
+                    let _ = client.start_conversation(request).await;
+                    // Retry the send
+                    send_result = client.send_message(conv_id, &message, true).await;
+                }
+
+                if let Err(e) = send_result {
                     error!("Failed to send message: {}", e);
                     state.add_message(DisplayMessage::error(format!("Failed to send: {}", e)));
                     state.execution_status = ExecutionStatus::Idle;
                     return Ok(false);
+                }
+            }
+        }
+
+        AppCommand::AskAgent(question) => {
+            if let Some(conv_id) = state.conversation_id {
+                state.add_message(DisplayMessage::btw(&question, "Asking agent..."));
+                if let Some(tx) = state.btw_sender.clone() {
+                    let client = client.clone();
+                    let q = question.clone();
+                    tokio::spawn(async move {
+                        let result = match client.ask_agent(conv_id, &q).await {
+                            Ok(response) => Ok(response),
+                            Err(e) => Err(format!("{}", e)),
+                        };
+                        let _ = tx.send((q, result));
+                    });
                 }
             }
         }
@@ -170,7 +233,8 @@ pub async fn process_command(
             *event_stream = None;
             state.reset_conversation();
 
-            let connected = resume_conversation(state, client, event_stream, conv_id, llm_config, args).await;
+            let connected =
+                resume_conversation(state, client, event_stream, conv_id, llm_config, args).await;
             let short_id = &conv_id.to_string()[..8.min(conv_id.to_string().len())];
             if connected {
                 state.notify(Notification::info(
@@ -460,9 +524,7 @@ pub async fn resume_conversation(
     }
 
     // Connect WebSocket
-    if let Some(stream) =
-        crate::client::try_connect_event_stream(client, conv_id, "resume").await
-    {
+    if let Some(stream) = crate::client::try_connect_event_stream(client, conv_id, "resume").await {
         *event_stream = Some(stream);
         state.connected = true;
 

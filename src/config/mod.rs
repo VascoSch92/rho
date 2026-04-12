@@ -29,6 +29,8 @@ pub struct LlmSettings {
 /// Top-level configuration (runtime, fully resolved).
 #[derive(Debug, Clone)]
 pub struct RhoConfig {
+    /// Pinned agent server version from config
+    pub agent_server_version: String,
     /// LLM settings from config (lowest priority — CLI/env override)
     pub llm: LlmSettings,
     /// Name of the active theme
@@ -71,6 +73,8 @@ impl Default for RhoConfig {
 #[derive(Debug, Clone, Default, Deserialize)]
 struct RawConfig {
     #[serde(default)]
+    agent_server: RawAgentServerConfig,
+    #[serde(default)]
     llm: RawLlmConfig,
     #[serde(default)]
     theme: RawThemeConfig,
@@ -84,6 +88,12 @@ struct RawConfig {
     scroll: RawScrollConfig,
     #[serde(default)]
     ui: RawUiConfig,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+struct RawAgentServerConfig {
+    #[serde(default)]
+    version: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -138,7 +148,7 @@ impl RhoConfig {
     /// Load config: parse embedded defaults, layer openhands, then user TOML.
     ///
     /// Priority for LLM settings (highest wins):
-    ///   `.rho/config.toml [llm]`  >  `~/.openhands/agent_settings.json`  >  embedded defaults
+    ///   `~/.rho/config.toml [llm]`  >  `~/.rho/agent_settings.json`  >  embedded defaults
     pub fn load() -> Self {
         // Parse embedded defaults (must succeed)
         let defaults_raw: RawConfig =
@@ -282,7 +292,14 @@ impl RhoConfig {
             .or(defaults.ui.selector_indicator)
             .unwrap_or_else(|| "❯".into());
 
+        // ── Agent Server ─────────────────────────────────────────────────
+        let agent_server_version = defaults
+            .agent_server
+            .version
+            .unwrap_or_else(|| "0.0.0".into());
+
         Self {
+            agent_server_version,
             llm,
             theme_name,
             themes,
@@ -357,13 +374,9 @@ fn merge_keybindings(defaults: KeyBindingsConfig, user: KeyBindingsConfig) -> Ke
     }
 }
 
-/// Get the path to the user config file: `.rho/config.toml` (next to the binary).
+/// Get the path to the user config file: `~/.rho/config.toml`.
 pub fn config_file_path() -> Option<PathBuf> {
-    Some(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join(".rho")
-            .join("config.toml"),
-    )
+    rho_dir().map(|d| d.join("config.toml"))
 }
 
 /// Save LLM settings to the user config file using toml_edit for surgical writes.
@@ -405,7 +418,7 @@ pub fn save_llm(model: &str, api_key: &str, base_url: Option<&str>) -> Result<()
 
     tracing::info!("Saved LLM settings to {}", path.display());
 
-    // Also write to ~/.openhands/agent_settings.json so openhands-cli stays in sync
+    // Also write to ~/.rho/agent_settings.json so openhands-cli stays in sync
     if let Err(e) = save_openhands_llm(model, api_key, base_url) {
         tracing::warn!("Failed to sync LLM settings to OpenHands: {}", e);
     }
@@ -442,55 +455,51 @@ pub fn save_theme(theme_name: &str) -> Result<(), String> {
 
 // ── OpenHands interoperability ─────────────────────────────────────────────
 //
-// Rho shares `~/.openhands/` with the openhands-cli so that users can switch
-// freely between the two tools. LLM settings come from `agent_settings.json`
-// and conversations live in `~/.openhands/conversations/`.
+// Rho stores all persistent data under `~/.rho/`. LLM settings come from
+// `agent_settings.json` and conversations live in `~/.rho/conversations/`.
 
-/// Return the `~/.openhands` directory, if the home dir can be determined.
-pub fn openhands_dir() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".openhands"))
+/// Return the `~/.rho` directory, if the home dir can be determined.
+pub fn rho_dir() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".rho"))
 }
 
-/// Return the conversations directory: `~/.openhands/conversations/`.
+/// Return the conversations directory: `~/.rho/conversations/`.
 pub fn conversations_dir() -> PathBuf {
-    openhands_dir()
-        .unwrap_or_else(|| PathBuf::from(".openhands"))
+    rho_dir()
+        .unwrap_or_else(|| PathBuf::from(".rho"))
         .join("conversations")
 }
 
 /// Return the data directory used as the agent server's working directory.
 ///
-/// Prefers `~/.openhands` if it exists, falling back to `.rho/`.
+/// Always uses `~/.rho`, creating it if it doesn't exist.
 pub fn data_dir() -> PathBuf {
-    if let Some(oh) = openhands_dir() {
-        if oh.is_dir() {
-            return oh;
-        }
-    }
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".rho")
+    let dir = rho_dir().unwrap_or_else(|| PathBuf::from(".rho"));
+    std::fs::create_dir_all(&dir).ok();
+    dir
 }
 
-/// Load LLM settings from `~/.openhands/agent_settings.json`.
+/// Load LLM settings from `~/.rho/agent_settings.json`.
 ///
 /// Returns `None` if the file doesn't exist or fails to parse.
 pub fn load_openhands_llm() -> Option<LlmSettings> {
-    let path = openhands_dir()?.join("agent_settings.json");
+    let path = rho_dir()?.join("agent_settings.json");
     let contents = std::fs::read_to_string(&path).ok()?;
     let val: serde_json::Value = serde_json::from_str(&contents).ok()?;
 
     let llm = val.get("llm")?;
     let model = llm.get("model").and_then(|v| v.as_str()).map(String::from);
-    let api_key = llm.get("api_key").and_then(|v| v.as_str()).map(String::from);
+    let api_key = llm
+        .get("api_key")
+        .and_then(|v| v.as_str())
+        .map(String::from);
     let base_url = llm
         .get("base_url")
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .map(String::from);
 
-    tracing::debug!(
-        "Loaded OpenHands LLM settings: model={:?}",
-        model
-    );
+    tracing::debug!("Loaded OpenHands LLM settings: model={:?}", model);
     Some(LlmSettings {
         model,
         api_key,
@@ -498,7 +507,7 @@ pub fn load_openhands_llm() -> Option<LlmSettings> {
     })
 }
 
-/// Write LLM settings back to `~/.openhands/agent_settings.json`.
+/// Write LLM settings back to `~/.rho/agent_settings.json`.
 ///
 /// Uses read-modify-write with `serde_json::Value` to preserve all other
 /// fields in the file (tools, condenser, etc.).
@@ -507,8 +516,8 @@ pub fn save_openhands_llm(
     api_key: &str,
     base_url: Option<&str>,
 ) -> Result<(), String> {
-    let Some(dir) = openhands_dir() else {
-        return Ok(()); // No ~/.openhands — nothing to write
+    let Some(dir) = rho_dir() else {
+        return Ok(()); // No ~/.rho — nothing to write
     };
     let path = dir.join("agent_settings.json");
     let mut val: serde_json::Value = if path.exists() {
@@ -528,8 +537,7 @@ pub fn save_openhands_llm(
     val["llm"]["api_key"] = serde_json::json!(api_key);
     val["llm"]["base_url"] = serde_json::json!(base_url.unwrap_or(""));
 
-    std::fs::create_dir_all(&dir)
-        .map_err(|e| format!("Failed to create ~/.openhands: {}", e))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create ~/.rho: {}", e))?;
     let json = serde_json::to_string_pretty(&val)
         .map_err(|e| format!("Failed to serialize agent_settings.json: {}", e))?;
     std::fs::write(&path, json)

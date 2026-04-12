@@ -32,6 +32,7 @@ impl<'a> MessageListWidget<'a> {
             MessageRole::Action => Style::default().fg(t.primary),
             MessageRole::Error => Style::default().fg(t.error).add_modifier(Modifier::BOLD),
             MessageRole::Terminal => Style::default().fg(t.accent),
+            MessageRole::Btw => Style::default().fg(t.accent),
         }
     }
 
@@ -202,6 +203,13 @@ impl<'a> MessageListWidget<'a> {
                         ]));
                     }
                 }
+                if !msg.activated_skills.is_empty() {
+                    let skills_str = msg.activated_skills.join(", ");
+                    lines.push(Line::from(vec![
+                        Span::styled("  Active skills: ", Style::default().fg(t.muted)),
+                        Span::styled(skills_str, Style::default().fg(t.accent)),
+                    ]));
+                }
             }
             MessageRole::Assistant => {
                 let content_width = width.saturating_sub(2);
@@ -284,6 +292,53 @@ impl<'a> MessageListWidget<'a> {
                             Span::styled("│ ", Style::default().fg(t.accent)),
                             Span::styled(wl.to_string(), Style::default().fg(t.muted)),
                         ]));
+                    }
+                }
+
+                // Footer
+                lines.push(Line::from(vec![Span::styled(
+                    "└─",
+                    Style::default().fg(t.accent),
+                )]));
+            }
+            MessageRole::Btw => {
+                // Content format: "question\nanswer"
+                let (question, answer) = msg.content.split_once('\n').unwrap_or((&msg.content, ""));
+                let is_waiting = answer == "Asking agent...";
+
+                // Header: "By the way: <question>"
+                lines.push(Line::from(vec![
+                    Span::styled("┌─ ", Style::default().fg(t.accent)),
+                    Span::styled(
+                        "By the way: ",
+                        Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(question.to_string(), Style::default().fg(t.accent)),
+                ]));
+
+                if is_waiting {
+                    // Waiting state: muted italic placeholder
+                    lines.push(Line::from(vec![
+                        Span::styled("│ ", Style::default().fg(t.accent)),
+                        Span::styled(
+                            "Waiting for an answer...",
+                            Style::default().fg(t.muted).add_modifier(Modifier::ITALIC),
+                        ),
+                    ]));
+                } else {
+                    // Body: render as markdown inside the box, trim trailing blanks
+                    let content_width = width.saturating_sub(4);
+                    let mut md_lines = render_markdown(answer, content_width, t);
+                    while md_lines
+                        .last()
+                        .is_some_and(|l| l.spans.iter().all(|s| s.content.trim().is_empty()))
+                    {
+                        md_lines.pop();
+                    }
+                    for md_line in md_lines {
+                        let mut spans = vec![Span::styled("│ ", Style::default().fg(t.accent))];
+                        spans.extend(md_line.spans);
+                        lines.push(Line::from(spans));
                     }
                 }
 
@@ -415,6 +470,7 @@ fn build_banner_lines<'a>(state: &AppState, t: &Theme, content_width: usize) -> 
             Span::styled("/help", Style::default().fg(t.primary)),
             Span::styled(" for commands", Style::default().fg(t.muted)),
         ],
+        vec![],
         vec![],
         vec![Span::styled(
             "Time to build something awesome",

@@ -1,5 +1,5 @@
 //! Conversation scanning — reads stored conversations from the shared
-//! conversations directory (`~/.openhands/conversations/` or `.rho/conversations/`).
+//! conversations directory (`~/.rho/conversations/`).
 
 use std::path::{Path, PathBuf};
 
@@ -78,10 +78,7 @@ pub fn scan_conversations() -> Vec<ConversationEntry> {
 ///
 /// Prefers `meta.json` if present, otherwise synthesises metadata from
 /// the filesystem and events.
-fn read_conversation_entry(
-    conv_dir: &Path,
-    dir_entry: &std::fs::DirEntry,
-) -> ConversationEntry {
+fn read_conversation_entry(conv_dir: &Path, dir_entry: &std::fs::DirEntry) -> ConversationEntry {
     let dir_name = dir_entry.file_name().to_string_lossy().to_string();
     let meta_path = conv_dir.join("meta.json");
 
@@ -118,9 +115,7 @@ fn try_read_meta_json(path: &Path, fallback_id: &str) -> Option<ConversationEntr
     let contents = std::fs::read_to_string(path).ok()?;
     let meta: MetaJson = serde_json::from_str(&contents).ok()?;
 
-    let id = meta
-        .id
-        .unwrap_or_else(|| fallback_id.to_string());
+    let id = meta.id.unwrap_or_else(|| fallback_id.to_string());
     let title = meta.title.unwrap_or_else(|| "(untitled)".into());
     let first_message = meta
         .initial_message
@@ -235,7 +230,7 @@ pub fn update_title(id: &str, new_title: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Delete a conversation directory from `~/.openhands/conversations/`.
+/// Delete a conversation directory from `~/.rho/conversations/`.
 pub fn delete_conversation(id: &str) -> Result<(), String> {
     let conv_dir = conversations_dir().join(id);
     if conv_dir.is_dir() {

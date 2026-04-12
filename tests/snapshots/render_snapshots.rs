@@ -1,7 +1,7 @@
 use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
 
 use rho::state::{
-    AppState, ConfirmationPolicy, DisplayMessage, InputMode, MessageRole, Notification, TaskItem,
+    AppState, ConfirmationPolicy, DisplayMessage, MessageRole, Notification, TaskItem,
 };
 use rho::ui::input::InputWidget;
 use rho::ui::messages::MessageListWidget;

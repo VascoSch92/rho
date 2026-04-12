@@ -79,6 +79,9 @@ dirs = "6.0.0"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[dev-dependencies]
+insta = "1"
+
 [profile.release]
 lto = true
 codegen-units = 1

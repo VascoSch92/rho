@@ -48,7 +48,6 @@ impl<'a> HelpModal<'a> {
     }
 }
 
-
 /// Keyboard shortcuts: (key, description)
 const SHORTCUTS: &[(&str, &str)] = &[
     ("!<cmd>", "Run bash command (e.g. !ls, !pwd)"),
@@ -61,12 +60,13 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("Ctrl+Q", "Quit"),
     ("↑↓ PgUp/Dn", "Scroll messages"),
     ("Ctrl+E", "Expand/collapse all actions"),
+    ("Ctrl+T", "Toggle task list panel"),
     ("Mouse wheel", "Scroll messages"),
 ];
 
 /// Text selection modifiers: (terminal, key)
 const TEXT_SELECTION: &[(&str, &str)] = &[
-    ("macOS Terminal", "Fn"),
+    ("macOS", "Fn"),
     ("iTerm2", "Option / Cmd"),
     ("Linux", "Shift"),
 ];

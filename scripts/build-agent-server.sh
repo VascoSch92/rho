@@ -7,7 +7,27 @@ REPO_DIR="$SCRIPT_DIR/software-agent-sdk"
 OUTPUT_DIR="$SCRIPT_DIR/dist"
 CLONED=false
 
-# ── Find Python >= 3.12 ──────────────────────────────────────────────
+# ── Logging helpers ──────────────────────────────────────────────────
+# Colors (disabled if not a TTY)
+if [ -t 1 ]; then
+  C_RESET=$'\033[0m'
+  C_BLUE=$'\033[1;34m'
+  C_GREEN=$'\033[1;32m'
+  C_YELLOW=$'\033[1;33m'
+  C_RED=$'\033[1;31m'
+  C_DIM=$'\033[2m'
+else
+  C_RESET='' C_BLUE='' C_GREEN='' C_YELLOW='' C_RED='' C_DIM=''
+fi
+
+step() { echo "${C_BLUE}▸${C_RESET} $*"; }
+ok()   { echo "${C_GREEN}✓${C_RESET} $*"; }
+warn() { echo "${C_YELLOW}!${C_RESET} $*"; }
+err()  { echo "${C_RED}✗${C_RESET} $*" >&2; }
+info() { echo "  ${C_DIM}$*${C_RESET}"; }
+
+# ── Preflight: Python ≥ 3.12 ─────────────────────────────────────────
+step "Checking Python (requires 3.12+)"
 PYTHON=""
 for candidate in python3.13 python3.12; do
   if command -v "$candidate" &>/dev/null; then
@@ -15,70 +35,107 @@ for candidate in python3.13 python3.12; do
     break
   fi
 done
+
 if [ -z "$PYTHON" ]; then
-  echo "ERROR: Python 3.12+ is required but not found on PATH"
+  err "Python 3.12+ is required but not found on PATH."
+  err "Install via your package manager, e.g.:"
+  err "  macOS:   brew install python@3.13"
+  err "  Debian:  sudo apt install python3.13"
   exit 1
 fi
-echo "==> Using Python: $PYTHON ($("$PYTHON" --version))"
+
+PY_VERSION="$("$PYTHON" --version 2>&1 | awk '{print $2}')"
+ok "Using $PYTHON ($PY_VERSION)"
+
+# ── Preflight: git ───────────────────────────────────────────────────
+if ! command -v git &>/dev/null; then
+  err "git is required but not found on PATH."
+  exit 1
+fi
 
 # ── Cleanup handler — removes cloned repo on exit ────────────────────
 cleanup() {
   if [ "$CLONED" = true ] && [ -d "$REPO_DIR" ]; then
-    echo "==> Cleaning up: removing cloned repo"
+    info "Cleaning up cloned repo"
     rm -rf "$REPO_DIR"
   fi
 }
 trap cleanup EXIT
 
-# ── Clone the latest release ─────────────────────────────────────────
-echo "==> Fetching latest release tag from $REPO_URL"
-LATEST_TAG=$(git ls-remote --tags --sort=-v:refname "$REPO_URL" \
-  | sed -n 's|.*refs/tags/||p' \
-  | grep -v '{}' \
-  | head -1)
+# ── Read pinned version from config.toml ─────────────────────────────
+step "Resolving agent server version"
+CONFIG_FILE="$SCRIPT_DIR/../config.toml"
+PINNED_VERSION=""
+if [ -f "$CONFIG_FILE" ]; then
+  PINNED_VERSION=$(grep -A1 '^\[agent_server\]' "$CONFIG_FILE" \
+    | grep '^version' \
+    | sed 's/.*= *"\(.*\)"/\1/')
+fi
 
-if [ -z "$LATEST_TAG" ]; then
-  echo "WARN: No release tags found, falling back to default branch"
-  git clone --depth 1 "$REPO_URL" "$REPO_DIR"
+if [ -n "$PINNED_VERSION" ]; then
+  TAG="v${PINNED_VERSION}"
+  ok "Pinned version from config.toml: $PINNED_VERSION (tag: $TAG)"
 else
-  echo "==> Cloning tag: $LATEST_TAG"
-  git clone --depth 1 --branch "$LATEST_TAG" "$REPO_URL" "$REPO_DIR"
+  warn "No pinned version in config.toml, fetching latest release"
+  TAG=$(git ls-remote --tags --sort=-v:refname "$REPO_URL" \
+    | sed -n 's|.*refs/tags/||p' \
+    | grep -v '{}' \
+    | head -1)
+  if [ -z "$TAG" ]; then
+    warn "No release tags found, using default branch"
+    TAG=""
+  else
+    ok "Latest release tag: $TAG"
+  fi
+fi
+
+# ── Clone the SDK ────────────────────────────────────────────────────
+step "Cloning OpenHands SDK"
+if [ -n "$TAG" ]; then
+  git clone --quiet --depth 1 --branch "$TAG" "$REPO_URL" "$REPO_DIR"
+else
+  git clone --quiet --depth 1 "$REPO_URL" "$REPO_DIR"
 fi
 CLONED=true
+ok "Cloned to $REPO_DIR"
 
 # ── Preflight: verify spec file exists ────────────────────────────────
 SPEC_FILE="$REPO_DIR/openhands-agent-server/openhands/agent_server/agent-server.spec"
 if [ ! -f "$SPEC_FILE" ]; then
-  echo "ERROR: PyInstaller spec file not found at $SPEC_FILE"
+  err "PyInstaller spec file not found at:"
+  err "  $SPEC_FILE"
+  err "The SDK layout may have changed — please check the upstream repo."
   exit 1
 fi
 
-echo "==> Building openhands-agent-server binary"
-
 # ── Create a venv so we don't pollute the system Python ───────────────
+step "Creating build virtualenv"
 VENV_DIR="$REPO_DIR/.build-venv"
-echo "==> Creating build virtualenv"
 "$PYTHON" -m venv "$VENV_DIR"
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
+ok "Virtualenv ready: $VENV_DIR"
 
-# ── Install PyInstaller + project packages in editable mode ───────────
-echo "==> Installing dependencies"
-pip install --upgrade pip
-pip install pyinstaller
+# ── Install PyInstaller + project packages ───────────────────────────
+step "Installing build dependencies"
+pip install --quiet --upgrade pip
+pip install --quiet pyinstaller
+ok "Installed pip + pyinstaller"
 
+step "Installing OpenHands SDK packages"
 for pkg in openhands-sdk openhands-tools openhands-workspace openhands-agent-server; do
   PKG_DIR="$REPO_DIR/$pkg"
   if [ -d "$PKG_DIR" ]; then
-    echo "    Installing $pkg"
-    pip install -e "$PKG_DIR"
+    info "$pkg"
+    pip install --quiet -e "$PKG_DIR"
   else
-    echo "    WARN: $PKG_DIR not found, skipping"
+    warn "$pkg not found at $PKG_DIR, skipping"
   fi
 done
+ok "All packages installed"
 
 # ── Patch spec: add missing hidden imports & data files ──────────────
-echo "==> Patching spec file: adding missing modules"
+step "Patching PyInstaller spec"
 "$PYTHON" -c "
 import pathlib, sys
 p = pathlib.Path(sys.argv[1])
@@ -101,8 +158,6 @@ if old_data in txt:
     txt = txt.replace(old_data, new_data, 1)
 
 # 3. Switch from one-file to one-dir (COLLECT step) for fast startup
-#    Replace the EXE that bundles everything into a single binary with
-#    an EXE + COLLECT that outputs a directory.
 old_exe = '''exe = EXE(
     pyz,
     a.scripts,
@@ -119,7 +174,6 @@ new_exe = '''exe = EXE(
 if old_exe in txt:
     txt = txt.replace(old_exe, new_exe, 1)
 
-# Add COLLECT after the EXE closing paren
 old_exe_end = '''    icon=None,
 )'''
 new_exe_end = '''    icon=None,
@@ -137,23 +191,23 @@ if old_exe_end in txt:
     txt = txt.replace(old_exe_end, new_exe_end, 1)
 
 p.write_text(txt)
-print('Patched successfully')
 " "$SPEC_FILE"
+ok "Spec patched"
 
 # ── Build the binary ─────────────────────────────────────────────────
-echo "==> Running PyInstaller (from repo root)"
+step "Running PyInstaller (this takes a few minutes)"
 pushd "$REPO_DIR" > /dev/null
-pyinstaller --noconfirm --clean "$SPEC_FILE" --distpath "$OUTPUT_DIR"
+pyinstaller --noconfirm --clean --log-level=WARN "$SPEC_FILE" --distpath "$OUTPUT_DIR" > /dev/null
 popd > /dev/null
 
 BINARY="$OUTPUT_DIR/openhands-agent-server/openhands-agent-server"
-if [ -f "$BINARY" ]; then
-  echo "==> Build succeeded (onedir): $OUTPUT_DIR/openhands-agent-server/"
-  ls -lh "$BINARY"
-  du -sh "$OUTPUT_DIR/openhands-agent-server/"
-else
-  echo "ERROR: Expected binary not found at $BINARY"
+if [ ! -f "$BINARY" ]; then
+  err "Build completed but binary not found at:"
+  err "  $BINARY"
   exit 1
 fi
 
-# cleanup runs automatically via trap EXIT
+SIZE=$(du -sh "$OUTPUT_DIR/openhands-agent-server/" | awk '{print $1}')
+ok "Build succeeded"
+info "Location: $OUTPUT_DIR/openhands-agent-server/"
+info "Size:     $SIZE"
