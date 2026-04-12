@@ -1,13 +1,13 @@
 <pre>
  ▄▄▄▄▄▄                        ┃
-█▀██▀▀▀█▄  █▄                  ┃  <b>Rho</b> v0.1.0
+█▀██▀▀▀█▄  █▄                  ┃  <b>Rho</b>
   ██▄▄▄█▀  ██                  ┃  Terminal UI for OpenHands
   ██▀▀█▄   ████▄ ▄███▄         ┃  Built with Rust + Ratatui
 ▄ ██  ██   ██ ██ ██ ██         ┃  License: MIT
 ▀██▀  ▀██▀▄██ ██▄▀███▀         ┃
 </pre>
 
-# Rho — OpenHands Agent Server TUI (Rust/Ratatui)
+# Rho — OpenHands Agent Server TUI
 
 > **WARNING: This project is highly experimental and under active development.**
 > APIs, commands, and behavior may change without notice. Use at your own risk.
