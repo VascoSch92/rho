@@ -465,22 +465,24 @@ async fn run_app(args: Args, server_launched: bool, mut config: RhoConfig) -> Re
     state.llm.model = model;
     state.llm.base_url = effective_base_url.clone();
 
-    // API key: env (if --override-with-envs) > config
+    // API key: env (if --override-with-envs) > config. If missing, start anyway
+    // and let the user set it via /settings.
     let llm_api_key = if let Some(ref key) = env_api_key {
         state.llm.api_key = key.clone();
         key.clone()
     } else if let Some(ref key) = config_llm.api_key {
-        if !key.is_empty() {
-            state.llm.api_key = key.clone();
-            key.clone()
-        } else {
-            error!("LLM_API_KEY is required. Set via --override-with-envs + LLM_API_KEY env, or /settings.");
-            return Err(anyhow::anyhow!("LLM_API_KEY is required"));
-        }
+        state.llm.api_key = key.clone();
+        key.clone()
     } else {
-        error!("LLM_API_KEY is required. Set via --override-with-envs + LLM_API_KEY env, or /settings.");
-        return Err(anyhow::anyhow!("LLM_API_KEY is required"));
+        String::new()
     };
+
+    if llm_api_key.is_empty() {
+        state.notify(Notification::warning(
+            "LLM API key not set",
+            "Set it via /settings, or pass --override-with-envs with LLM_API_KEY.",
+        ));
+    }
 
     // Persist env overrides to ~/.rho/config.toml so they survive restarts
     if args.override_with_envs {
