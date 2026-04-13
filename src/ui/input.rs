@@ -140,7 +140,7 @@ impl Widget for InputWidget<'_> {
                 ""
             };
 
-            let input_line = Line::from(vec![
+            let mut spans = vec![
                 Span::styled(before_cursor, Style::default().fg(t.foreground)),
                 Span::styled(
                     cursor_char.to_string(),
@@ -150,11 +150,40 @@ impl Widget for InputWidget<'_> {
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(after_cursor, Style::default().fg(t.foreground)),
-            ]);
+            ];
 
-            let paragraph = Paragraph::new(input_line);
+            if let Some(hint) = command_param_hint(input) {
+                spans.push(Span::styled(
+                    format!(" {}", hint),
+                    Style::default().fg(t.muted).add_modifier(Modifier::ITALIC),
+                ));
+            }
+
+            let paragraph = Paragraph::new(Line::from(spans));
             paragraph.render(input_area, buf);
         }
+    }
+}
+
+/// Returns a muted hint describing the parameter a slash command expects,
+/// shown after the typed command while no argument has been entered yet.
+fn command_param_hint(input: &str) -> Option<&'static str> {
+    let rest = input.strip_prefix('/')?;
+    // Split into command and whatever follows. We only want to show the hint
+    // when the user has the command fully typed but hasn't started the arg.
+    let (cmd, after) = match rest.find(' ') {
+        Some(i) => (&rest[..i], &rest[i + 1..]),
+        None => (rest, ""),
+    };
+    if !after.is_empty() {
+        return None;
+    }
+    match cmd.to_lowercase().as_str() {
+        "confirm" => Some("[always|never|risky]"),
+        "theme" => Some("[theme name]"),
+        "btw" => Some("<question>"),
+        "rename" => Some("<new name>"),
+        _ => None,
     }
 }
 

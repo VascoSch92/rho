@@ -90,6 +90,68 @@ fn snapshot_input_multiline() {
     insta::assert_snapshot!(output);
 }
 
+#[test]
+fn snapshot_input_command_hint_confirm() {
+    let mut state = new_state();
+    state.input_buffer = "/confirm".into();
+    state.cursor_position = 8;
+    let widget = InputWidget::new(&state);
+    let output = render_to_string(widget, 60, 3);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_input_command_hint_theme() {
+    let mut state = new_state();
+    state.input_buffer = "/theme ".into();
+    state.cursor_position = 7;
+    let widget = InputWidget::new(&state);
+    let output = render_to_string(widget, 60, 3);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_input_command_hint_btw() {
+    let mut state = new_state();
+    state.input_buffer = "/btw".into();
+    state.cursor_position = 4;
+    let widget = InputWidget::new(&state);
+    let output = render_to_string(widget, 60, 3);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_input_command_hint_rename() {
+    let mut state = new_state();
+    state.input_buffer = "/rename".into();
+    state.cursor_position = 7;
+    let widget = InputWidget::new(&state);
+    let output = render_to_string(widget, 60, 3);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_input_command_hint_hidden_when_arg_typed() {
+    // Once the user starts typing the argument, the hint disappears.
+    let mut state = new_state();
+    state.input_buffer = "/confirm al".into();
+    state.cursor_position = 11;
+    let widget = InputWidget::new(&state);
+    let output = render_to_string(widget, 60, 3);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_input_command_hint_no_hint_for_parameterless() {
+    // /help takes no parameters — no hint should be shown.
+    let mut state = new_state();
+    state.input_buffer = "/help".into();
+    state.cursor_position = 5;
+    let widget = InputWidget::new(&state);
+    let output = render_to_string(widget, 60, 3);
+    insta::assert_snapshot!(output);
+}
+
 // ── BottomStatusBar ─────────────────────────────────────────────────
 
 #[test]
