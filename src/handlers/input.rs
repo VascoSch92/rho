@@ -556,7 +556,8 @@ fn handle_normal_input(state: &mut AppState, key: event::KeyEvent) -> Option<App
                 // conversation before the (possibly slow) async send kicks in.
                 // Skip display if agent is busy — will be shown when dequeued
                 // so order stays PROMPT_1, ANSWER_1, PROMPT_2, ANSWER_2.
-                if !(state.conversation_id.is_some() && state.is_running()) {
+                let agent_busy = state.conversation_id.is_some() && state.is_running();
+                if !agent_busy && !state.server_starting {
                     state.add_message(crate::state::DisplayMessage::user(&input));
                 }
                 return Some(AppCommand::SendMessage(input));

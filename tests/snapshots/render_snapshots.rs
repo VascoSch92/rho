@@ -330,6 +330,43 @@ fn snapshot_spinner_running() {
     insta::assert_snapshot!(output);
 }
 
+#[test]
+fn snapshot_spinner_server_starting() {
+    let mut state = new_state();
+    state.server_starting = true;
+    state.server_starting_tick = 2;
+    let widget = SpinnerWidget::new(&state);
+    let output = render_to_string(widget, 60, 1);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_spinner_server_starting_takes_precedence_over_running() {
+    // When both server_starting and is_running are true, the startup line
+    // should render (not the thinking spinner).
+    let mut state = new_state();
+    state.server_starting = true;
+    state.server_starting_tick = 1;
+    state.execution_status = rho::client::ExecutionStatus::Running;
+    state.spinner_frames = vec!["⠋".into()];
+    state.spinner_tick = 0;
+    state.fun_facts = vec!["Thinking hard...".into()];
+    state.fun_fact_index = 0;
+    let widget = SpinnerWidget::new(&state);
+    let output = render_to_string(widget, 60, 1);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_spinner_server_starting_tick_zero() {
+    let mut state = new_state();
+    state.server_starting = true;
+    state.server_starting_tick = 0;
+    let widget = SpinnerWidget::new(&state);
+    let output = render_to_string(widget, 60, 1);
+    insta::assert_snapshot!(output);
+}
+
 // ── NotificationWidget ──────────────────────────────────────────────
 
 #[test]

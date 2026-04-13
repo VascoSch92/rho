@@ -12,7 +12,7 @@ use super::{
     messages::MessageListWidget,
     modals::{
         ConfirmationPanel, ExitConfirmationModal, HelpModal, PolicyModal, ResumeModal,
-        SettingsModal, SkillsModal, StartupModal, ThemeModal, TokenUsageModal, ToolsModal,
+        SettingsModal, SkillsModal, ThemeModal, TokenUsageModal, ToolsModal,
     },
     spinner::{spinner_height, SpinnerWidget},
     status::{BottomStatusBar, NotificationWidget},
@@ -105,11 +105,6 @@ pub fn render(frame: &mut Frame, state: &AppState) {
     // Resume modal
     if state.resume_modal.show {
         frame.render_widget(ResumeModal::new(state), area);
-    }
-
-    // Startup modal (server initializing)
-    if state.server_starting {
-        frame.render_widget(StartupModal::new(state), area);
     }
 
     // Notification modal (centered, same style as other modals)

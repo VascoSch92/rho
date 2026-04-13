@@ -1,0 +1,5 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+ ✦  Waking up the coding agent.

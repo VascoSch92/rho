@@ -694,6 +694,28 @@ async fn run_app(args: Args, server_launched: bool, mut config: RhoConfig) -> Re
         // Fetch stats when execution finishes (server doesn't push metrics via WebSocket)
         refresh_stats_if_needed(&mut state, &client).await;
 
+        // Once the server is ready, if messages were typed during startup and
+        // no conversation exists yet, dispatch the first one through the
+        // normal SendMessage path (which will create the conversation).
+        if !state.server_starting
+            && state.conversation_id.is_none()
+            && !state.is_running()
+            && !state.message_queue.is_empty()
+        {
+            if let Some(msg) = state.message_queue.pop_front() {
+                state.add_message(DisplayMessage::user(&msg));
+                let _ = process_command(
+                    &mut state,
+                    &client,
+                    &mut event_stream,
+                    handlers::AppCommand::SendMessage(msg),
+                    &args,
+                    &llm_config,
+                )
+                .await?;
+            }
+        }
+
         // Drain message queue — send next queued message when agent becomes idle
         drain_message_queue(&mut state, &client).await;
 
@@ -738,10 +760,6 @@ async fn poll_server_startup(state: &mut AppState, client: &AgentServerClient, t
         Ok(_) => {
             state.server_starting = false;
             state.connected = true;
-            state.notify(Notification::info(
-                "Connected",
-                "✨ Agent is awake and ready!",
-            ));
             info!("Agent server ready");
         }
         Err(_) => {
