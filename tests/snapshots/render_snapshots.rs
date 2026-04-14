@@ -5,6 +5,7 @@ use rho::state::{
 };
 use rho::ui::input::InputWidget;
 use rho::ui::messages::MessageListWidget;
+use rho::ui::modals::SettingsModal;
 use rho::ui::spinner::SpinnerWidget;
 use rho::ui::status::BottomStatusBar;
 use rho::ui::tasks::TaskListWidget;
@@ -458,6 +459,90 @@ fn snapshot_notification_none() {
     let state = new_state();
     let widget = rho::ui::status::NotificationWidget::new(&state);
     let output = render_to_string(widget, 60, 15);
+    insta::assert_snapshot!(output);
+}
+
+// ── SettingsModal (Basic / Advanced tabs) ───────────────────────────
+
+#[test]
+fn snapshot_settings_basic_tab() {
+    let mut state = new_state();
+    state.settings.show = true;
+    state.settings.tab = 0;
+    state.settings.field = 0;
+    state.llm.api_key = "sk-abcdef1234567890".into();
+    let widget = SettingsModal::new(&state);
+    let output = render_to_string(widget, 80, 24);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_settings_basic_tab_model_selected() {
+    let mut state = new_state();
+    state.settings.show = true;
+    state.settings.tab = 0;
+    state.settings.field = 1;
+    state.llm.api_key = "sk-abcdef1234567890".into();
+    let widget = SettingsModal::new(&state);
+    let output = render_to_string(widget, 80, 24);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_settings_advanced_tab_defaults() {
+    // Default Advanced tab with no overrides — Custom Model highlighted first.
+    let mut state = new_state();
+    state.settings.show = true;
+    state.settings.tab = 1;
+    state.settings.field = 4;
+    let widget = SettingsModal::new(&state);
+    let output = render_to_string(widget, 80, 28);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_settings_advanced_tab_populated() {
+    // Advanced tab with custom values filled in, Memory Condensation selected.
+    let mut state = new_state();
+    state.settings.show = true;
+    state.settings.tab = 1;
+    state.settings.field = 8;
+    state.llm.custom_model = "anthropic/custom-experimental".into();
+    state.llm.base_url = Some("https://api.example.com".into());
+    state.llm.llm_timeout_seconds = 120;
+    state.llm.llm_max_input_tokens = Some(200_000);
+    state.llm.condenser_max_size = Some(32_000);
+    state.llm.memory_condensation = false;
+    state.llm.api_key = "sk-abcdef1234567890".into();
+    let widget = SettingsModal::new(&state);
+    let output = render_to_string(widget, 80, 28);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_settings_advanced_tab_editing_timeout() {
+    // Editing the LLM Timeout field: edit_buffer should render with trailing _.
+    let mut state = new_state();
+    state.settings.show = true;
+    state.settings.tab = 1;
+    state.settings.field = 5;
+    state.settings.editing = true;
+    state.settings.edit_buffer = "45".into();
+    let widget = SettingsModal::new(&state);
+    let output = render_to_string(widget, 80, 28);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn snapshot_settings_basic_tab_editing_api_key() {
+    let mut state = new_state();
+    state.settings.show = true;
+    state.settings.tab = 0;
+    state.settings.field = 2;
+    state.settings.editing = true;
+    state.settings.edit_buffer = "sk-newkey".into();
+    let widget = SettingsModal::new(&state);
+    let output = render_to_string(widget, 80, 24);
     insta::assert_snapshot!(output);
 }
 

@@ -464,6 +464,17 @@ async fn run_app(args: Args, server_launched: bool, mut config: RhoConfig) -> Re
     state.llm.provider = provider;
     state.llm.model = model;
     state.llm.base_url = effective_base_url.clone();
+    if let Some(v) = config_llm.custom_model.clone() {
+        state.llm.custom_model = v;
+    }
+    if let Some(v) = config_llm.llm_timeout_seconds {
+        state.llm.llm_timeout_seconds = v;
+    }
+    state.llm.llm_max_input_tokens = config_llm.llm_max_input_tokens;
+    state.llm.condenser_max_size = config_llm.condenser_max_size;
+    if let Some(v) = config_llm.memory_condensation {
+        state.llm.memory_condensation = v;
+    }
 
     // API key: env (if --override-with-envs) > config. If missing, start anyway
     // and let the user set it via /settings.

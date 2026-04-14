@@ -1,0 +1,28 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+
+
+
+
+   ╭ Settings ──────────────────────────────────────────────────────────────╮
+   │                                                                        │
+   │   Basic  │  Advanced                                                   │
+   │                                                                        │
+   │   Custom Model:        anthropic/custom-experimental                   │
+   │                                                                        │
+   │   Base URL:            https://api.example.com                         │
+   │                                                                        │
+   │   LLM Timeout (s):     120                                             │
+   │                                                                        │
+   │   Max Input Tokens:    200000                                          │
+   │                                                                        │
+   │   Condenser Max Size:  32000                                           │
+   │                                                                        │
+   │   API Key:   sk-a********                                              │
+   │                                                                        │
+   │ ❯ Memory Condensation: Off  Enter to toggle                            │
+   │                                                                        │
+   │  Tab/←→ switch tab  ↑/↓ navigate  Enter select/edit  Esc close & save  │
+   ╰────────────────────────────────────────────────────────────────────────╯

@@ -1,0 +1,28 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+
+
+
+
+                  ╭ Settings ────────────────────────────────╮
+                  │                                          │
+                  │   Basic  │  Advanced                     │
+                  │                                          │
+                  │   Custom Model:        (none)            │
+                  │                                          │
+                  │   Base URL:            (default)         │
+                  │                                          │
+                  │ ❯ LLM Timeout (s):     45_               │
+                  │                                          │
+                  │   Max Input Tokens:    (unset)           │
+                  │                                          │
+                  │   Condenser Max Size:  (unset)           │
+                  │                                          │
+                  │   API Key:   (not set)                   │
+                  │                                          │
+                  │   Memory Condensation: On                │
+                  │                                          │
+                  │  Type to edit  Enter save  Esc cancel    │
+                  ╰──────────────────────────────────────────╯

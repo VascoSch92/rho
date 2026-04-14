@@ -24,6 +24,11 @@ pub struct LlmSettings {
     pub model: Option<String>,
     pub api_key: Option<String>,
     pub base_url: Option<String>,
+    pub custom_model: Option<String>,
+    pub llm_timeout_seconds: Option<u32>,
+    pub llm_max_input_tokens: Option<u64>,
+    pub condenser_max_size: Option<u64>,
+    pub memory_condensation: Option<bool>,
 }
 
 /// Top-level configuration (runtime, fully resolved).
@@ -104,6 +109,16 @@ struct RawLlmConfig {
     api_key: Option<String>,
     #[serde(default)]
     base_url: Option<String>,
+    #[serde(default)]
+    custom_model: Option<String>,
+    #[serde(default)]
+    llm_timeout_seconds: Option<u32>,
+    #[serde(default)]
+    llm_max_input_tokens: Option<u64>,
+    #[serde(default)]
+    condenser_max_size: Option<u64>,
+    #[serde(default)]
+    memory_condensation: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -263,12 +278,22 @@ impl RhoConfig {
                     model: u.llm.model.clone().or(base.model),
                     api_key: u.llm.api_key.clone().or(base.api_key),
                     base_url: u.llm.base_url.clone().or(base.base_url),
+                    custom_model: u.llm.custom_model.clone().or(base.custom_model),
+                    llm_timeout_seconds: u.llm.llm_timeout_seconds.or(base.llm_timeout_seconds),
+                    llm_max_input_tokens: u.llm.llm_max_input_tokens.or(base.llm_max_input_tokens),
+                    condenser_max_size: u.llm.condenser_max_size.or(base.condenser_max_size),
+                    memory_condensation: u.llm.memory_condensation.or(base.memory_condensation),
                 }
             } else {
                 LlmSettings {
                     model: base.model,
                     api_key: base.api_key,
                     base_url: base.base_url,
+                    custom_model: base.custom_model,
+                    llm_timeout_seconds: base.llm_timeout_seconds,
+                    llm_max_input_tokens: base.llm_max_input_tokens,
+                    condenser_max_size: base.condenser_max_size,
+                    memory_condensation: base.memory_condensation,
                 }
             }
         };
@@ -426,6 +451,59 @@ pub fn save_llm(model: &str, api_key: &str, base_url: Option<&str>) -> Result<()
     Ok(())
 }
 
+/// Persist the advanced LLM settings (custom_model, timeout, token caps,
+/// condenser max size, memory condensation) to the user config file. Empty
+/// strings / `None` values remove the corresponding key so the file stays
+/// tidy.
+pub fn save_llm_advanced(
+    custom_model: &str,
+    llm_timeout_seconds: u32,
+    llm_max_input_tokens: Option<u64>,
+    condenser_max_size: Option<u64>,
+    memory_condensation: bool,
+) -> Result<(), String> {
+    let path = config_file_path().ok_or("Could not determine config directory")?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create config directory: {}", e))?;
+    }
+    let contents = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut doc = contents
+        .parse::<toml_edit::DocumentMut>()
+        .map_err(|e| format!("Failed to parse config file: {}", e))?;
+    if !doc.contains_key("llm") {
+        doc["llm"] = toml_edit::Item::Table(toml_edit::Table::new());
+    }
+
+    if custom_model.is_empty() {
+        doc["llm"].as_table_mut().map(|t| t.remove("custom_model"));
+    } else {
+        doc["llm"]["custom_model"] = toml_edit::value(custom_model);
+    }
+    doc["llm"]["llm_timeout_seconds"] = toml_edit::value(llm_timeout_seconds as i64);
+    match llm_max_input_tokens {
+        Some(v) => doc["llm"]["llm_max_input_tokens"] = toml_edit::value(v as i64),
+        None => {
+            doc["llm"]
+                .as_table_mut()
+                .map(|t| t.remove("llm_max_input_tokens"));
+        }
+    }
+    match condenser_max_size {
+        Some(v) => doc["llm"]["condenser_max_size"] = toml_edit::value(v as i64),
+        None => {
+            doc["llm"]
+                .as_table_mut()
+                .map(|t| t.remove("condenser_max_size"));
+        }
+    }
+    doc["llm"]["memory_condensation"] = toml_edit::value(memory_condensation);
+
+    std::fs::write(&path, doc.to_string())
+        .map_err(|e| format!("Failed to write config file: {}", e))?;
+    Ok(())
+}
+
 /// Save the active theme name to the user config file.
 pub fn save_theme(theme_name: &str) -> Result<(), String> {
     let path = config_file_path().ok_or("Could not determine config directory")?;
@@ -504,6 +582,7 @@ pub fn load_openhands_llm() -> Option<LlmSettings> {
         model,
         api_key,
         base_url,
+        ..LlmSettings::default()
     })
 }
 

@@ -1,0 +1,26 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+
+
+                  ╭ Settings ────────────────────────────────╮
+                  │                                          │
+                  │   Basic  │  Advanced                     │
+                  │                                          │
+                  │   Provider:  Anthropic                   │
+                  │                                          │
+                  │   Model:     claude-sonnet-4-5-20250929  │
+                  │                                          │
+                  │ ❯ API Key:   sk-newkey_                  │
+                  │                                          │
+                  │                                          │
+                  │                                          │
+                  │                                          │
+                  │                                          │
+                  │                                          │
+                  │                                          │
+                  │                                          │
+                  │                                          │
+                  │  Type to edit  Enter save  Esc cancel    │
+                  ╰──────────────────────────────────────────╯

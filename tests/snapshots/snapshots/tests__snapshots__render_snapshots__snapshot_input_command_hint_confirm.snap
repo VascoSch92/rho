@@ -1,0 +1,7 @@
+---
+source: tests/snapshots/render_snapshots.rs
+expression: output
+---
+────────────────────────────────────────────────────────────
+ /confirm  [always|never|risky]
+────────────────────────────────────────────────────────────

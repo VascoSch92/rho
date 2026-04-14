@@ -94,6 +94,17 @@ pub struct LlmState {
     pub model: String,
     pub api_key: String,
     pub base_url: Option<String>,
+    /// Free-text override; when non-empty it's sent to the server instead of
+    /// the preset `model`.
+    pub custom_model: String,
+    /// Request timeout in seconds for LLM calls.
+    pub llm_timeout_seconds: u32,
+    /// Maximum input tokens per request, if set.
+    pub llm_max_input_tokens: Option<u64>,
+    /// Condenser max size (tokens / turns), if set.
+    pub condenser_max_size: Option<u64>,
+    /// Whether memory condensation is enabled.
+    pub memory_condensation: bool,
 }
 
 impl Default for LlmState {
@@ -109,6 +120,11 @@ impl Default for LlmState {
             model,
             api_key: String::new(),
             base_url: None,
+            custom_model: String::new(),
+            llm_timeout_seconds: 600,
+            llm_max_input_tokens: None,
+            condenser_max_size: None,
+            memory_condensation: true,
         }
     }
 }
